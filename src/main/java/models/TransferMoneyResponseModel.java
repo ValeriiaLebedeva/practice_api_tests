@@ -9,7 +9,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class LoginUserResponseModel extends BaseModel {
-    private String username;
-    private String role;
+public class TransferMoneyResponseModel extends BaseModel{
+    private long senderAccountId;
+    private long receiverAccountId;
+    private double amount;
+    private String message;
 }

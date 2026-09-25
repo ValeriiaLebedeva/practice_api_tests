@@ -30,4 +30,20 @@ public class ResponseSpecs {
                 .expectBody(errorKey, Matchers.equalTo(errorValue))
                 .build();
     }
+
+    public static ResponseSpecification requestReturnsBadRequestOnlyBody(String bodyValue) {
+        return defaultResponseBuilder()
+                .expectStatusCode(HttpStatus.SC_BAD_REQUEST)
+                .expectBody(Matchers.equalTo(bodyValue))
+                .build();
+    }
+
+    public static ResponseSpecification requestReturnsForbiddenOnlyBody(String bodyValue) {
+        return defaultResponseBuilder()
+                .expectStatusCode(HttpStatus.SC_FORBIDDEN)
+                .expectBody(Matchers.equalTo(bodyValue))
+                .build();
+    }
+
+
 }
