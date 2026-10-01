@@ -44,6 +44,4 @@ public class ResponseSpecs {
                 .expectBody(Matchers.equalTo(bodyValue))
                 .build();
     }
-
-
 }

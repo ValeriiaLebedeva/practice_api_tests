@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import requests.AdminCreateUserRequester;
 import requests.ChangeUserNameRequester;
+import requests.GetCustomerProfileRequester;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
 
@@ -27,14 +28,14 @@ public class ChangeUserNameTest extends BaseTest {
                 .role(UserRole.USER.toString())
                 .build();
 
-        UpdateCustomerProfileRequestModel updateCustomerProfileRequestModel = UpdateCustomerProfileRequestModel.builder()
-                .name(RandomData.getProfileName())
-                .build();
-
         new AdminCreateUserRequester(
                 RequestSpecs.adminSpec(),
                 ResponseSpecs.entityWasCreated())
                 .execute(userRequestModel);
+
+        UpdateCustomerProfileRequestModel updateCustomerProfileRequestModel = UpdateCustomerProfileRequestModel.builder()
+                .name(RandomData.getProfileName())
+                .build();
 
         UpdateCustomerProfileResponseModel updateCustomerProfileResponseModel = new ChangeUserNameRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                 ResponseSpecs.requestReturnsOK())
@@ -44,6 +45,13 @@ public class ChangeUserNameTest extends BaseTest {
 
         softly.assertThat(updateCustomerProfileRequestModel.getName()).isEqualTo(updateCustomerProfileResponseModel.getCustomer().getName());
         softly.assertThat(SUCCESSFUL_MESSAGE).isEqualTo(updateCustomerProfileResponseModel.getMessage());
+
+        Customer customer = new GetCustomerProfileRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract().as(Customer.class);
+
+        softly.assertThat(customer.getName()).isEqualTo(updateCustomerProfileRequestModel.getName());
     }
 
     public static Stream<Arguments> userInvalidData() {
@@ -74,5 +82,12 @@ public class ChangeUserNameTest extends BaseTest {
         new ChangeUserNameRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                 ResponseSpecs.requestReturnsBadRequestOnlyBody(message))
                 .execute(updateCustomerProfileRequestModel);
+
+        Customer customer = new GetCustomerProfileRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract().as(Customer.class);
+
+        softly.assertThat(customer.getName()).isNotEqualTo(profileName);
     }
 }

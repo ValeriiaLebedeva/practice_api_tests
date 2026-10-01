@@ -1,6 +1,7 @@
 package iteration2;
 
 import generators.RandomData;
+import io.restassured.common.mapper.TypeRef;
 import iteration1.BaseTest;
 import models.*;
 import org.junit.jupiter.api.Test;
@@ -10,9 +11,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 import requests.AdminCreateUserRequester;
 import requests.CreateAccountRequester;
 import requests.DepositMoneyRequester;
+import requests.GetCustomerAccountRequester;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 public class DepositMoneyTest extends BaseTest {
@@ -41,7 +44,7 @@ public class DepositMoneyTest extends BaseTest {
         CreateAccountResponseModel createAccountResponseModel =
                 new CreateAccountRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null).extract().as(CreateAccountResponseModel.class);
+                        .execute().extract().as(CreateAccountResponseModel.class);
 
         DepositMoneyRequestModel depositMoneyRequestModel = DepositMoneyRequestModel.builder()
                 .id(createAccountResponseModel.getId())
@@ -60,6 +63,32 @@ public class DepositMoneyTest extends BaseTest {
                 .isEqualTo(TransactionType.DEPOSIT);
         softly.assertThat(depositMoneyResponseModel.getTransactions().getFirst().getRelatedAccountId())
                 .isEqualTo(depositMoneyRequestModel.getId());
+
+        // достаем список аккаунтов для юзера
+        List<Account> accountList = new GetCustomerAccountRequester(
+                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract()
+                .as(new TypeRef<List<Account>>() {
+                });
+
+        // проверяем размер количества аккаунтов
+        softly.assertThat(accountList.size()).isEqualTo(1);
+
+        // находим аккаунт
+        Account account = accountList
+                .stream()
+                .filter(acc -> acc.getId() == createAccountResponseModel.getId())
+                .findFirst()
+                .get();
+
+        // проверяем баланс аккаунта и количество транзакций
+        softly.assertThat(account
+                .getBalance()).isEqualTo(deposit);
+        softly.assertThat(account
+                .getTransactions()
+                .size()).isEqualTo(1);
     }
 
     public static Stream<Arguments> depositAmountInvalidData() {
@@ -86,7 +115,7 @@ public class DepositMoneyTest extends BaseTest {
         CreateAccountResponseModel createAccountResponseModel =
                 new CreateAccountRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null).extract().as(CreateAccountResponseModel.class);
+                        .execute().extract().as(CreateAccountResponseModel.class);
 
         DepositMoneyRequestModel depositMoneyRequestModel = DepositMoneyRequestModel.builder()
                 .id(createAccountResponseModel.getId())
@@ -95,6 +124,32 @@ public class DepositMoneyTest extends BaseTest {
 
         new DepositMoneyRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                 ResponseSpecs.requestReturnsBadRequestOnlyBody(message)).execute(depositMoneyRequestModel);
+
+        // достаем список аккаунтов для юзера
+        List<Account> accountList = new GetCustomerAccountRequester(
+                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract()
+                .as(new TypeRef<List<Account>>() {
+                });
+
+        // проверяем размер количества аккаунтов
+        softly.assertThat(accountList.size()).isEqualTo(1);
+
+        // находим аккаунт
+        Account account = accountList
+                .stream()
+                .filter(acc -> acc.getId() == createAccountResponseModel.getId())
+                .findFirst()
+                .get();
+
+        // проверяем баланс аккаунта и количество транзакций
+        softly.assertThat(account
+                .getBalance()).isEqualTo(0);
+        softly.assertThat(account
+                .getTransactions()
+                .size()).isEqualTo(0);
     }
 
     @Test
@@ -114,7 +169,7 @@ public class DepositMoneyTest extends BaseTest {
         CreateAccountResponseModel createAccountResponseModel =
                 new CreateAccountRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null).extract().as(CreateAccountResponseModel.class);
+                        .execute().extract().as(CreateAccountResponseModel.class);
 
         DepositMoneyRequestModel depositMoneyRequestModel = DepositMoneyRequestModel.builder()
                 .id(createAccountResponseModel.getId() + 1)
@@ -124,6 +179,32 @@ public class DepositMoneyTest extends BaseTest {
         new DepositMoneyRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                 ResponseSpecs.requestReturnsForbiddenOnlyBody(UNAUTHENTIC_ERROR_MESSAGE)).execute(depositMoneyRequestModel);
 
+        // достаем список аккаунтов для юзера
+        List<Account> accountList = new GetCustomerAccountRequester(
+                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract()
+                .as(new TypeRef<List<Account>>() {
+                });
+
+        // проверяем размер количества аккаунтов - нет лишнего аккаунта
+        softly.assertThat(accountList.size()).isEqualTo(1);
+        softly.assertThat(accountList.size()).isNotEqualTo(2);
+
+        // находим аккаунт только с правильным id
+        Account account = accountList
+                .stream()
+                .filter(acc -> acc.getId() == createAccountResponseModel.getId())
+                .findFirst()
+                .get();
+
+        // проверяем баланс аккаунта и количество транзакций
+        softly.assertThat(account
+                .getBalance()).isEqualTo(0);
+        softly.assertThat(account
+                .getTransactions()
+                .size()).isEqualTo(0);
     }
 
     @Test
@@ -145,7 +226,7 @@ public class DepositMoneyTest extends BaseTest {
         CreateAccountResponseModel createAccountResponseModelOwner =
                 new CreateAccountRequester(RequestSpecs.authAsUser(userRequestModelOwner.getUsername(), userRequestModelOwner.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null).extract().as(CreateAccountResponseModel.class);
+                        .execute().extract().as(CreateAccountResponseModel.class);
 
         // создание another пользователя
         CreateUserRequestModel userRequestModelAnother = CreateUserRequestModel.builder()
@@ -167,5 +248,43 @@ public class DepositMoneyTest extends BaseTest {
 
         new DepositMoneyRequester(RequestSpecs.authAsUser(userRequestModelAnother.getUsername(), userRequestModelAnother.getPassword()),
                 ResponseSpecs.requestReturnsForbiddenOnlyBody(UNAUTHENTIC_ERROR_MESSAGE)).execute(depositMoneyRequestModel);
+
+        // достаем список аккаунтов для owner юзера
+        List<Account> accountList = new GetCustomerAccountRequester(
+                RequestSpecs.authAsUser(userRequestModelOwner.getUsername(), userRequestModelOwner.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract()
+                .as(new TypeRef<List<Account>>() {
+                });
+
+        // проверяем размер количества аккаунтов
+        softly.assertThat(accountList.size()).isEqualTo(1);
+
+        // находим аккаунт
+        Account account = accountList
+                .stream()
+                .filter(acc -> acc.getId() == createAccountResponseModelOwner.getId())
+                .findFirst()
+                .get();
+
+        // проверяем баланс аккаунта и количество транзакций
+        softly.assertThat(account
+                .getBalance()).isEqualTo(0);
+        softly.assertThat(account
+                .getTransactions()
+                .size()).isEqualTo(0);
+
+        // достаем список аккаунтов для another юзера
+        List<Account> accountList2 = new GetCustomerAccountRequester(
+                RequestSpecs.authAsUser(userRequestModelAnother.getUsername(), userRequestModelAnother.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract()
+                .as(new TypeRef<List<Account>>() {
+                });
+
+        // проверяем размер количества another аккаунтов
+        softly.assertThat(accountList2.size()).isEqualTo(0);
     }
 }

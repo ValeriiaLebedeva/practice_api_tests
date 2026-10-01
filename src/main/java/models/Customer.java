@@ -11,7 +11,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class Customer extends BaseModel{
+public class Customer extends BaseModel {
     private long id;
     private String username;
     private String password;

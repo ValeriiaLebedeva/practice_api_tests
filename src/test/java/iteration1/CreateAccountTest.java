@@ -26,7 +26,7 @@ public class CreateAccountTest extends BaseTest {
 
         new CreateAccountRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                 ResponseSpecs.entityWasCreated())
-                .execute(null);
+                .execute();
 
         // запросить все аккаунты пользователя и проверить, что наш аккаунт там
 

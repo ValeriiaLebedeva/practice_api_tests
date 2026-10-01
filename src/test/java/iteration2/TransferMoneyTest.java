@@ -54,7 +54,7 @@ public class TransferMoneyTest extends BaseTest {
                 new CreateAccountRequester(
                         RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null)
+                        .execute()
                         .extract()
                         .as(CreateAccountResponseModel.class);
 
@@ -73,7 +73,7 @@ public class TransferMoneyTest extends BaseTest {
                 new CreateAccountRequester(
                         RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null)
+                        .execute()
                         .extract()
                         .as(CreateAccountResponseModel.class);
 
@@ -100,7 +100,7 @@ public class TransferMoneyTest extends BaseTest {
         List<Account> accountList = new GetCustomerAccountRequester(
                 RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                 ResponseSpecs.requestReturnsOK())
-                .execute(null)
+                .execute()
                 .extract()
                 .as(new TypeRef<List<Account>>() {
                 });
@@ -193,7 +193,7 @@ public class TransferMoneyTest extends BaseTest {
                 new CreateAccountRequester(
                         RequestSpecs.authAsUser(userRequestModel1.getUsername(), userRequestModel1.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null)
+                        .execute()
                         .extract()
                         .as(CreateAccountResponseModel.class);
 
@@ -224,7 +224,7 @@ public class TransferMoneyTest extends BaseTest {
                 new CreateAccountRequester(
                         RequestSpecs.authAsUser(userRequestModel2.getUsername(), userRequestModel2.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null)
+                        .execute()
                         .extract()
                         .as(CreateAccountResponseModel.class);
 
@@ -251,7 +251,7 @@ public class TransferMoneyTest extends BaseTest {
         List<Account> accountList1 = new GetCustomerAccountRequester(
                 RequestSpecs.authAsUser(userRequestModel1.getUsername(), userRequestModel1.getPassword()),
                 ResponseSpecs.requestReturnsOK())
-                .execute(null)
+                .execute()
                 .extract()
                 .as(new TypeRef<List<Account>>() {
                 });
@@ -299,7 +299,7 @@ public class TransferMoneyTest extends BaseTest {
         List<Account> accountList2 = new GetCustomerAccountRequester(
                 RequestSpecs.authAsUser(userRequestModel2.getUsername(), userRequestModel2.getPassword()),
                 ResponseSpecs.requestReturnsOK())
-                .execute(null)
+                .execute()
                 .extract()
                 .as(new TypeRef<List<Account>>() {
                 });
@@ -367,7 +367,7 @@ public class TransferMoneyTest extends BaseTest {
                 new CreateAccountRequester(
                         RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null)
+                        .execute()
                         .extract()
                         .as(CreateAccountResponseModel.class);
 
@@ -386,7 +386,7 @@ public class TransferMoneyTest extends BaseTest {
                 new CreateAccountRequester(
                         RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null)
+                        .execute()
                         .extract()
                         .as(CreateAccountResponseModel.class);
 
@@ -400,6 +400,46 @@ public class TransferMoneyTest extends BaseTest {
         new TransferMoneyRequester(
                 RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                 ResponseSpecs.requestReturnsBadRequestOnlyBody(message)).execute(transferMoneyRequestModel);
+
+        // достаем список аккаунтов для юзера
+        List<Account> accountList = new GetCustomerAccountRequester(
+                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract()
+                .as(new TypeRef<List<Account>>() {
+                });
+
+        // проверяем размер количества аккаунтов
+        softly.assertThat(accountList.size()).isEqualTo(2);
+
+        // находим аккаунт - отправитель
+        Account accountSenderResponse = accountList
+                .stream()
+                .filter(acc -> acc.getId() == accountSender.getId())
+                .findFirst()
+                .get();
+
+        // проверяем баланс аккаунта отправителя и количество транзакций
+        softly.assertThat(accountSenderResponse
+                .getBalance()).isEqualTo(deposit);
+        softly.assertThat(accountSenderResponse
+                .getTransactions()
+                .size()).isEqualTo(1);
+
+        // находим аккаунт - получатель
+        Account accountReceiverResponse = accountList
+                .stream()
+                .filter(acc -> acc.getId() == accountReceiver.getId())
+                .findFirst()
+                .get();
+
+        // проверяем баланс аккаунта получателя и количество транзакций
+        softly.assertThat(accountReceiverResponse
+                .getBalance()).isEqualTo(0);
+        softly.assertThat(accountReceiverResponse
+                .getTransactions()
+                .size()).isEqualTo(0);
     }
 
     @Test
@@ -424,7 +464,7 @@ public class TransferMoneyTest extends BaseTest {
                 new CreateAccountRequester(
                         RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null)
+                        .execute()
                         .extract()
                         .as(CreateAccountResponseModel.class);
 
@@ -448,6 +488,32 @@ public class TransferMoneyTest extends BaseTest {
         new TransferMoneyRequester(
                 RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                 ResponseSpecs.requestReturnsBadRequestOnlyBody(BAD_REQUEST_MESSAGE_INVALID_TRANSFER)).execute(transferMoneyRequestModel);
+
+        // достаем список аккаунтов для юзера
+        List<Account> accountList = new GetCustomerAccountRequester(
+                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract()
+                .as(new TypeRef<List<Account>>() {
+                });
+
+        // проверяем размер количества аккаунтов
+        softly.assertThat(accountList.size()).isEqualTo(1);
+
+        // находим аккаунт - отправитель
+        Account accountSenderResponse = accountList
+                .stream()
+                .filter(acc -> acc.getId() == accountSender.getId())
+                .findFirst()
+                .get();
+
+        // проверяем баланс аккаунта отправителя и количество транзакций
+        softly.assertThat(accountSenderResponse
+                .getBalance()).isEqualTo(deposit);
+        softly.assertThat(accountSenderResponse
+                .getTransactions()
+                .size()).isEqualTo(1);
     }
 
     @Test
@@ -471,7 +537,7 @@ public class TransferMoneyTest extends BaseTest {
                 new CreateAccountRequester(
                         RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null)
+                        .execute()
                         .extract()
                         .as(CreateAccountResponseModel.class);
 
@@ -485,6 +551,32 @@ public class TransferMoneyTest extends BaseTest {
         new TransferMoneyRequester(
                 RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                 ResponseSpecs.requestReturnsForbiddenOnlyBody(UNAUTHENTIC_ERROR_MESSAGE)).execute(transferMoneyRequestModel);
+
+        // достаем список аккаунтов для юзера
+        List<Account> accountList = new GetCustomerAccountRequester(
+                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract()
+                .as(new TypeRef<List<Account>>() {
+                });
+
+        // проверяем размер количества аккаунтов
+        softly.assertThat(accountList.size()).isEqualTo(1);
+
+        // находим аккаунт - получатель
+        Account accountReceiverResponse = accountList
+                .stream()
+                .filter(acc -> acc.getId() == accountReceiver.getId())
+                .findFirst()
+                .get();
+
+        // проверяем баланс аккаунта получателя и количество транзакций
+        softly.assertThat(accountReceiverResponse
+                .getBalance()).isEqualTo(0);
+        softly.assertThat(accountReceiverResponse
+                .getTransactions()
+                .size()).isEqualTo(0);
     }
 
     @Test
@@ -509,7 +601,7 @@ public class TransferMoneyTest extends BaseTest {
                 new CreateAccountRequester(
                         RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                         ResponseSpecs.entityWasCreated())
-                        .execute(null)
+                        .execute()
                         .extract()
                         .as(CreateAccountResponseModel.class);
 
@@ -533,6 +625,32 @@ public class TransferMoneyTest extends BaseTest {
         new TransferMoneyRequester(
                 RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
                 ResponseSpecs.requestReturnsBadRequestOnlyBody(BAD_REQUEST_MESSAGE_INVALID_TRANSFER)).execute(transferMoneyRequestModel);
+
+        // достаем список аккаунтов для юзера
+        List<Account> accountList = new GetCustomerAccountRequester(
+                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract()
+                .as(new TypeRef<List<Account>>() {
+                });
+
+        // проверяем размер количества аккаунтов
+        softly.assertThat(accountList.size()).isEqualTo(1);
+
+        // находим аккаунт - отправитель
+        Account accountSenderResponse = accountList
+                .stream()
+                .filter(acc -> acc.getId() == accountSender.getId())
+                .findFirst()
+                .get();
+
+        // проверяем баланс аккаунта отправителя и количество транзакций
+        softly.assertThat(accountSenderResponse
+                .getBalance()).isEqualTo(deposit);
+        softly.assertThat(accountSenderResponse
+                .getTransactions()
+                .size()).isEqualTo(1);
     }
 }
 
