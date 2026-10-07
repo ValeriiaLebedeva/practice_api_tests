@@ -1,100 +1,62 @@
 package iteration2;
 
-import io.restassured.RestAssured;
-import io.restassured.filter.log.RequestLoggingFilter;
-import io.restassured.filter.log.ResponseLoggingFilter;
-import io.restassured.http.ContentType;
-import org.apache.http.HttpStatus;
-import org.junit.jupiter.api.BeforeAll;
+import generators.RandomData;
+import iteration1.BaseTest;
+import models.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import requests.AdminCreateUserRequester;
+import requests.ChangeUserNameRequester;
+import requests.GetCustomerProfileRequester;
+import specs.RequestSpecs;
+import specs.ResponseSpecs;
 
-import java.util.List;
 import java.util.stream.Stream;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
+public class ChangeUserNameTest extends BaseTest {
 
-public class ChangeUserNameTest {
-
-    @BeforeAll
-    public static void setupRestAssured() {
-        RestAssured.filters(
-                List.of(new RequestLoggingFilter(),
-                        new ResponseLoggingFilter()));
-    }
+    private static final String SUCCESSFUL_MESSAGE = "Profile updated successfully";
 
     @Test
     public void userCanChangeProfileNamePositiveTest() {
-        String username = "user" + (int) (Math.random() * 10000);
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Kate2000#",
-                          "role": "USER"
-                        }
-                        """.formatted(username))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
+        CreateUserRequestModel userRequestModel = CreateUserRequestModel.builder()
+                .username(RandomData.getUsername())
+                .password(RandomData.getPassword())
+                .role(UserRole.USER.toString())
+                .build();
 
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Kate2000#"
-                        }
-                        """.formatted(username))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
+        new AdminCreateUserRequester(
+                RequestSpecs.adminSpec(),
+                ResponseSpecs.entityWasCreated())
+                .execute(userRequestModel);
+
+        UpdateCustomerProfileRequestModel updateCustomerProfileRequestModel = UpdateCustomerProfileRequestModel.builder()
+                .name(RandomData.getProfileName())
+                .build();
+
+        UpdateCustomerProfileResponseModel updateCustomerProfileResponseModel = new ChangeUserNameRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute(updateCustomerProfileRequestModel)
                 .extract()
-                .header("Authorization");
+                .as(UpdateCustomerProfileResponseModel.class);
 
+        softly.assertThat(updateCustomerProfileRequestModel.getName()).isEqualTo(updateCustomerProfileResponseModel.getCustomer().getName());
+        softly.assertThat(SUCCESSFUL_MESSAGE).isEqualTo(updateCustomerProfileResponseModel.getMessage());
 
-        // меняем имя пользователю
-        String profileName = "New Name";
+        Customer customer = new GetCustomerProfileRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract().as(Customer.class);
 
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "%s"
-                        }
-                        """.formatted(profileName))
-                .put("http://localhost:4111/api/v1/customer/profile")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .body("customer.name", equalTo(profileName))
-                .body("message", equalTo("Profile updated successfully"));
+        softly.assertThat(customer.getName()).isEqualTo(updateCustomerProfileRequestModel.getName());
     }
-
 
     public static Stream<Arguments> userInvalidData() {
         return Stream.of(
-                // username field validation
-                Arguments.of("", "Name must contain two words with letters only"),
-                Arguments.of(" ", "Name must contain two words with letters only"),
-                Arguments.of("New", "Name must contain two words with letters only"),
-                Arguments.of("1234 5353", "Name must contain two words with letters only"),
-                Arguments.of("*%^#$@!()-_+=", "Name must contain two words with letters only")
-        );
+                Arguments.of("", "Name must contain two words with letters only"), Arguments.of(" ", "Name must contain two words with letters only"), Arguments.of("New", "Name must contain two words with letters only"), Arguments.of("1234 5353", "Name must contain two words with letters only"), Arguments.of("*%^#$@!()-_+=", "Name must contain two words with letters only"));
 
     }
 
@@ -102,57 +64,30 @@ public class ChangeUserNameTest {
     @ParameterizedTest
     public void userCanChangeProfileNameNegativeTest(String profileName, String message) {
 
-        String username = "user" + (int) (Math.random() * 10000);
+        CreateUserRequestModel userRequestModel = CreateUserRequestModel.builder()
+                .username(RandomData.getUsername())
+                .password(RandomData.getPassword())
+                .role(UserRole.USER.toString())
+                .build();
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Kate2000#",
-                          "role": "USER"
-                        }
-                        """.formatted(username))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
+        UpdateCustomerProfileRequestModel updateCustomerProfileRequestModel = UpdateCustomerProfileRequestModel.builder()
+                .name(profileName)
+                .build();
 
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Kate2000#"
-                        }
-                        """.formatted(username))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .extract()
-                .header("Authorization");
+        new AdminCreateUserRequester(
+                RequestSpecs.adminSpec(),
+                ResponseSpecs.entityWasCreated())
+                .execute(userRequestModel);
 
+        new ChangeUserNameRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsBadRequestOnlyBody(message))
+                .execute(updateCustomerProfileRequestModel);
 
-        // меняем имя пользователю
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "%s"
-                        }
-                        """.formatted(profileName))
-                .put("http://localhost:4111/api/v1/customer/profile")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_BAD_REQUEST)
-                .body(equalTo(message));
+        Customer customer = new GetCustomerProfileRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .execute()
+                .extract().as(Customer.class);
+
+        softly.assertThat(customer.getName()).isNotEqualTo(profileName);
     }
 }
