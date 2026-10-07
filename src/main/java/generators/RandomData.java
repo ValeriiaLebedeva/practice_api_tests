@@ -14,10 +14,4 @@ public class RandomData {
                 RandomStringUtils.randomAlphabetic(5).toLowerCase() +
                 RandomStringUtils.randomNumeric(3) + "$" ;
     }
-
-    public static String getProfileName() {
-        return RandomStringUtils.randomAlphabetic(5) + " " +
-                RandomStringUtils.randomAlphabetic(8);
-    }
 }
-
