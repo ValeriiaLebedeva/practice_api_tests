@@ -1,15 +1,14 @@
 package iteration2;
 
-import generators.RandomData;
-import io.restassured.common.mapper.TypeRef;
 import iteration1.BaseTest;
 import models.*;
+import models.assertions.ModelAssertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import requests.*;
-import specs.RequestSpecs;
+import requests.skelethon.steps.AdminSteps;
+import requests.skelethon.steps.UserSteps;
 import specs.ResponseSpecs;
 
 import java.util.List;
@@ -38,82 +37,39 @@ public class TransferMoneyTest extends BaseTest {
     public void transferFromUserAccount1ToUserAccount2Test(double deposit, double transferAmount) {
 
         // создаем юзера
-        CreateUserRequestModel userRequestModel = CreateUserRequestModel.builder()
-                .username(RandomData.getUsername())
-                .password(RandomData.getPassword())
-                .role(UserRole.USER.toString())
-                .build();
-
-        new AdminCreateUserRequester(
-                RequestSpecs.adminSpec(),
-                ResponseSpecs.entityWasCreated())
-                .execute(userRequestModel);
+        CreateUserRequestModel userRequestModel = AdminSteps.createUser();
 
         // создаем аккаунт 1
-        CreateAccountResponseModel accountSender =
-                new CreateAccountRequester(
-                        RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                        ResponseSpecs.entityWasCreated())
-                        .execute()
-                        .extract()
-                        .as(CreateAccountResponseModel.class);
+        CreateAccountResponseModel accountSender = UserSteps.createAccount(userRequestModel);
 
         // добавляем депозит на аккаунт 1
-        DepositMoneyRequestModel depositMoneyRequestModel = DepositMoneyRequestModel.builder()
-                .id(accountSender.getId())
-                .balance(deposit)
-                .build();
-
-        new DepositMoneyRequester(RequestSpecs.authAsUser(
-                userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK()).execute(depositMoneyRequestModel);
+        UserSteps.deposit(userRequestModel, accountSender.getId(), deposit);
 
         // создаем аккаунт 2
-        CreateAccountResponseModel accountReceiver =
-                new CreateAccountRequester(
-                        RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                        ResponseSpecs.entityWasCreated())
-                        .execute()
-                        .extract()
-                        .as(CreateAccountResponseModel.class);
+        CreateAccountResponseModel accountReceiver = UserSteps.createAccount(userRequestModel);
+
+        // создаем модель запроса трансфера
+        TransferMoneyRequestModel transferMoneyRequestModel = transferRequest(accountSender.getId(), accountReceiver.getId(), transferAmount);
 
         // выполняем трансфер с аккаунта 1 на аккаунт 2
-        TransferMoneyRequestModel transferMoneyRequestModel = TransferMoneyRequestModel.builder()
-                .senderAccountId(accountSender.getId())
-                .receiverAccountId(accountReceiver.getId())
-                .amount(transferAmount)
-                .build();
+        TransferMoneyResponseModel transferMoneyResponseModel =
+                UserSteps.transfer(userRequestModel,
+                        transferMoneyRequestModel);
 
-        TransferMoneyResponseModel transferMoneyResponseModel = new TransferMoneyRequester(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK()).execute(transferMoneyRequestModel)
-                .extract()
-                .as(TransferMoneyResponseModel.class);
+        // сравниваем модели по model-comparison.properties
+        ModelAssertions.assertThatModels(transferMoneyRequestModel, transferMoneyResponseModel).match(softly);
 
-        // проверяем тело респонса
-        softly.assertThat(accountSender.getId()).isEqualTo(transferMoneyResponseModel.getSenderAccountId());
-        softly.assertThat(accountReceiver.getId()).isEqualTo(transferMoneyResponseModel.getReceiverAccountId());
-        softly.assertThat(transferAmount).isEqualTo(transferMoneyResponseModel.getAmount());
+        // вручную проверяем сообщение
         softly.assertThat(SUCCESSFUL_MESSAGE).isEqualTo(transferMoneyResponseModel.getMessage());
 
         // достаем список аккаунтов для юзера
-        List<Account> accountList = new GetCustomerAccountRequester(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .execute()
-                .extract()
-                .as(new TypeRef<List<Account>>() {
-                });
+        List<Account> accountList = UserSteps.getAccountsList(userRequestModel);
 
         // проверяем размер количества аккаунтов
         softly.assertThat(accountList.size()).isEqualTo(2);
 
         // находим аккаунт - отправитель
-        Account accountSenderResponse = accountList
-                .stream()
-                .filter(acc -> acc.getId() == accountSender.getId())
-                .findFirst()
-                .get();
+        Account accountSenderResponse = UserSteps.getAccountById(accountList, accountSender.getId());
 
         // проверяем баланс аккаунта отправителя и количество транзакций
         softly.assertThat(accountSenderResponse
@@ -123,16 +79,10 @@ public class TransferMoneyTest extends BaseTest {
                 .size()).isEqualTo(2);
 
         // находим транзакцию с типом DEPOSIT
-        Transaction depositTransaction = accountSenderResponse.getTransactions().stream()
-                .filter(t -> t.getType() == TransactionType.DEPOSIT)
-                .findFirst()
-                .orElseThrow();
+        Transaction depositTransaction = UserSteps.getTransactionByType(accountSenderResponse, TransactionType.DEPOSIT);
 
         // находим транзакцию с типом TRANSFER_OUT
-        Transaction transferOutTransaction = accountSenderResponse.getTransactions().stream()
-                .filter(t -> t.getType() == TransactionType.TRANSFER_OUT)
-                .findFirst()
-                .orElseThrow();
+        Transaction transferOutTransaction = UserSteps.getTransactionByType(accountSenderResponse, TransactionType.TRANSFER_OUT);
 
         // проверяем историю транзакций DEPOSIT/TRANSFER_OUT аккаунта отправителя
         softly.assertThat(depositTransaction
@@ -145,11 +95,7 @@ public class TransferMoneyTest extends BaseTest {
                 .getRelatedAccountId()).isEqualTo(accountReceiver.getId());
 
         // находим аккаунт - получатель
-        Account accountReceiverResponse = accountList
-                .stream()
-                .filter(acc -> acc.getId() == accountReceiver.getId())
-                .findFirst()
-                .get();
+        Account accountReceiverResponse = UserSteps.getAccountById(accountList, accountReceiver.getId());
 
         // проверяем баланс аккаунта получателя и количество транзакций
         softly.assertThat(accountReceiverResponse
@@ -159,10 +105,7 @@ public class TransferMoneyTest extends BaseTest {
                 .size()).isEqualTo(1);
 
         // находим транзакцию с типом TRANSFER_IN
-        Transaction transferInTransaction = accountReceiverResponse.getTransactions().stream()
-                .filter(t -> t.getType() == TransactionType.TRANSFER_IN)
-                .findFirst()
-                .orElseThrow();
+        Transaction transferInTransaction = UserSteps.getTransactionByType(accountReceiverResponse, TransactionType.TRANSFER_IN);
 
         // проверяем историю транзакции TRANSFER_IN аккаунта получателя
         softly.assertThat(transferInTransaction
@@ -177,94 +120,42 @@ public class TransferMoneyTest extends BaseTest {
         double transferAmount = 100.0;
 
         // создаем юзера 1
-        CreateUserRequestModel userRequestModel1 = CreateUserRequestModel.builder()
-                .username(RandomData.getUsername())
-                .password(RandomData.getPassword())
-                .role(UserRole.USER.toString())
-                .build();
-
-        new AdminCreateUserRequester(
-                RequestSpecs.adminSpec(),
-                ResponseSpecs.entityWasCreated())
-                .execute(userRequestModel1);
+        CreateUserRequestModel userRequestModel1 = AdminSteps.createUser();
 
         // создаем аккаунт 1 для юзера 1
-        CreateAccountResponseModel accountSender =
-                new CreateAccountRequester(
-                        RequestSpecs.authAsUser(userRequestModel1.getUsername(), userRequestModel1.getPassword()),
-                        ResponseSpecs.entityWasCreated())
-                        .execute()
-                        .extract()
-                        .as(CreateAccountResponseModel.class);
+        CreateAccountResponseModel accountSender = UserSteps.createAccount(userRequestModel1);
 
         // добавляем депозит на аккаунт 1 для юзера 1
-        DepositMoneyRequestModel depositMoneyRequestModel = DepositMoneyRequestModel.builder()
-                .id(accountSender.getId())
-                .balance(deposit)
-                .build();
-
-        new DepositMoneyRequester(RequestSpecs.authAsUser(
-                userRequestModel1.getUsername(), userRequestModel1.getPassword()),
-                ResponseSpecs.requestReturnsOK()).execute(depositMoneyRequestModel);
+        UserSteps.deposit(userRequestModel1, accountSender.getId(), deposit);
 
         // создаем юзера 2
-        CreateUserRequestModel userRequestModel2 = CreateUserRequestModel.builder()
-                .username(RandomData.getUsername())
-                .password(RandomData.getPassword())
-                .role(UserRole.USER.toString())
-                .build();
-
-        new AdminCreateUserRequester(
-                RequestSpecs.adminSpec(),
-                ResponseSpecs.entityWasCreated())
-                .execute(userRequestModel2);
+        CreateUserRequestModel userRequestModel2 = AdminSteps.createUser();
 
         // создаем аккаунт 2 для юзера 2
-        CreateAccountResponseModel accountReceiver =
-                new CreateAccountRequester(
-                        RequestSpecs.authAsUser(userRequestModel2.getUsername(), userRequestModel2.getPassword()),
-                        ResponseSpecs.entityWasCreated())
-                        .execute()
-                        .extract()
-                        .as(CreateAccountResponseModel.class);
+        CreateAccountResponseModel accountReceiver = UserSteps.createAccount(userRequestModel2);
+
+        // создаем модель запроса трансфера
+        TransferMoneyRequestModel transferMoneyRequestModel = transferRequest(accountSender.getId(), accountReceiver.getId(), transferAmount);
 
         // выполняем трансфер с аккаунта 1 юзера 1 на аккаунт 2 юзера 2
-        TransferMoneyRequestModel transferMoneyRequestModel = TransferMoneyRequestModel.builder()
-                .senderAccountId(accountSender.getId())
-                .receiverAccountId(accountReceiver.getId())
-                .amount(transferAmount)
-                .build();
+        TransferMoneyResponseModel transferMoneyResponseModel =
+                UserSteps.transfer(userRequestModel1,
+                        transferMoneyRequestModel);
 
-        TransferMoneyResponseModel transferMoneyResponseModel = new TransferMoneyRequester(
-                RequestSpecs.authAsUser(userRequestModel1.getUsername(), userRequestModel1.getPassword()),
-                ResponseSpecs.requestReturnsOK()).execute(transferMoneyRequestModel)
-                .extract()
-                .as(TransferMoneyResponseModel.class);
+        // сравниваем модели по model-comparison.properties
+        ModelAssertions.assertThatModels(transferMoneyRequestModel, transferMoneyResponseModel).match(softly);
 
-        // проверяем тело респонса
-        softly.assertThat(accountSender.getId()).isEqualTo(transferMoneyResponseModel.getSenderAccountId());
-        softly.assertThat(accountReceiver.getId()).isEqualTo(transferMoneyResponseModel.getReceiverAccountId());
-        softly.assertThat(transferAmount).isEqualTo(transferMoneyResponseModel.getAmount());
+        // вручную проверяем сообщение
         softly.assertThat(SUCCESSFUL_MESSAGE).isEqualTo(transferMoneyResponseModel.getMessage());
 
         // получаем список аккаунтов для юзера 1
-        List<Account> accountList1 = new GetCustomerAccountRequester(
-                RequestSpecs.authAsUser(userRequestModel1.getUsername(), userRequestModel1.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .execute()
-                .extract()
-                .as(new TypeRef<List<Account>>() {
-                });
+        List<Account> accountList1 = UserSteps.getAccountsList(userRequestModel1);
 
         // проверяем количество аккаунтов для юзера 1
         softly.assertThat(accountList1.size()).isEqualTo(1);
 
         // находим аккаунт - отправитель
-        Account accountSenderResponse = accountList1
-                .stream()
-                .filter(acc -> acc.getId() == accountSender.getId())
-                .findFirst()
-                .get();
+        Account accountSenderResponse = UserSteps.getAccountById(accountList1, accountSender.getId());
 
         // проверяем баланс аккаунта отправителя и количество транзакций
         softly.assertThat(accountSenderResponse
@@ -274,16 +165,10 @@ public class TransferMoneyTest extends BaseTest {
                 .size()).isEqualTo(2);
 
         // находим транзакцию с типом DEPOSIT
-        Transaction depositTransaction = accountSenderResponse.getTransactions().stream()
-                .filter(t -> t.getType() == TransactionType.DEPOSIT)
-                .findFirst()
-                .orElseThrow();
+        Transaction depositTransaction = UserSteps.getTransactionByType(accountSenderResponse, TransactionType.DEPOSIT);
 
         // находим транзакцию с типом TRANSFER_OUT
-        Transaction transferOutTransaction = accountSenderResponse.getTransactions().stream()
-                .filter(t -> t.getType() == TransactionType.TRANSFER_OUT)
-                .findFirst()
-                .orElseThrow();
+        Transaction transferOutTransaction = UserSteps.getTransactionByType(accountSenderResponse, TransactionType.TRANSFER_OUT);
 
         // проверяем историю транзакций DEPOSIT/TRANSFER_OUT аккаунта отправителя
         softly.assertThat(depositTransaction
@@ -296,26 +181,15 @@ public class TransferMoneyTest extends BaseTest {
                 .getRelatedAccountId()).isEqualTo(accountReceiver.getId());
 
         // получаем список аккаунтов для юзера 2
-        List<Account> accountList2 = new GetCustomerAccountRequester(
-                RequestSpecs.authAsUser(userRequestModel2.getUsername(), userRequestModel2.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .execute()
-                .extract()
-                .as(new TypeRef<List<Account>>() {
-                });
+        List<Account> accountList2 = UserSteps.getAccountsList(userRequestModel2);
 
         // проверяем количество аккаунтов для юзера 2
         softly.assertThat(accountList2.size()).isEqualTo(1);
 
         // находим аккаунт - получатель
-        Account accountReceiverResponse = accountList2
-                .stream()
-                .filter(acc -> acc.getId() == accountReceiver.getId())
-                .findFirst()
-                .get();
+        Account accountReceiverResponse = UserSteps.getAccountById(accountList2, accountReceiver.getId());
 
         // проверяем баланс аккаунта получателя и количество транзакций
-
         softly.assertThat(accountReceiverResponse
                 .getBalance()).isEqualTo(transferAmount);
         softly.assertThat(accountReceiverResponse
@@ -323,10 +197,7 @@ public class TransferMoneyTest extends BaseTest {
                 .size()).isEqualTo(1);
 
         // находим транзакцию с типом TRANSFER_IN
-        Transaction transferInTransaction = accountReceiverResponse.getTransactions().stream()
-                .filter(t -> t.getType() == TransactionType.TRANSFER_IN)
-                .findFirst()
-                .orElseThrow();
+        Transaction transferInTransaction = UserSteps.getTransactionByType(accountReceiverResponse, TransactionType.TRANSFER_IN);
 
         // проверяем историю транзакции TRANSFER_IN аккаунта получателя
         softly.assertThat(transferInTransaction
@@ -351,74 +222,35 @@ public class TransferMoneyTest extends BaseTest {
     public void transferAmountNegativeCase(double deposit, double transfer, String message) {
 
         // создаем юзера
-        CreateUserRequestModel userRequestModel = CreateUserRequestModel.builder()
-                .username(RandomData.getUsername())
-                .password(RandomData.getPassword())
-                .role(UserRole.USER.toString())
-                .build();
-
-        new AdminCreateUserRequester(
-                RequestSpecs.adminSpec(),
-                ResponseSpecs.entityWasCreated())
-                .execute(userRequestModel);
+        CreateUserRequestModel userRequestModel = AdminSteps.createUser();
 
         // создаем аккаунт 1
-        CreateAccountResponseModel accountSender =
-                new CreateAccountRequester(
-                        RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                        ResponseSpecs.entityWasCreated())
-                        .execute()
-                        .extract()
-                        .as(CreateAccountResponseModel.class);
-
-        DepositMoneyRequestModel depositMoneyRequestModel = DepositMoneyRequestModel.builder()
-                .id(accountSender.getId())
-                .balance(deposit)
-                .build();
+        CreateAccountResponseModel accountSender = UserSteps.createAccount(userRequestModel);
 
         // добавляем депозит на аккаунт 1
-        new DepositMoneyRequester(RequestSpecs.authAsUser(
-                userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK()).execute(depositMoneyRequestModel);
+
+        UserSteps.deposit(userRequestModel, accountSender.getId(), deposit);
 
         // создаем аккаунт 2
-        CreateAccountResponseModel accountReceiver =
-                new CreateAccountRequester(
-                        RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                        ResponseSpecs.entityWasCreated())
-                        .execute()
-                        .extract()
-                        .as(CreateAccountResponseModel.class);
+        CreateAccountResponseModel accountReceiver = UserSteps.createAccount(userRequestModel);
+
+        // создаем модель запроса трансфера
+        TransferMoneyRequestModel transferMoneyRequestModel = transferRequest(accountSender.getId(), accountReceiver.getId(), transfer);
 
         // выполняем трансфер с аккаунта 1 на аккаунт 2
-        TransferMoneyRequestModel transferMoneyRequestModel = TransferMoneyRequestModel.builder()
-                .senderAccountId(accountSender.getId())
-                .receiverAccountId(accountReceiver.getId())
-                .amount(transfer)
-                .build();
-
-        new TransferMoneyRequester(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsBadRequestOnlyBody(message)).execute(transferMoneyRequestModel);
+        UserSteps.transferExpecting(
+                userRequestModel,
+                transferMoneyRequestModel,
+                ResponseSpecs.requestReturnsBadRequestOnlyBody(message));
 
         // достаем список аккаунтов для юзера
-        List<Account> accountList = new GetCustomerAccountRequester(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .execute()
-                .extract()
-                .as(new TypeRef<List<Account>>() {
-                });
+        List<Account> accountList = UserSteps.getAccountsList(userRequestModel);
 
         // проверяем размер количества аккаунтов
         softly.assertThat(accountList.size()).isEqualTo(2);
 
         // находим аккаунт - отправитель
-        Account accountSenderResponse = accountList
-                .stream()
-                .filter(acc -> acc.getId() == accountSender.getId())
-                .findFirst()
-                .get();
+        Account accountSenderResponse = UserSteps.getAccountById(accountList, accountSender.getId());
 
         // проверяем баланс аккаунта отправителя и количество транзакций
         softly.assertThat(accountSenderResponse
@@ -428,11 +260,7 @@ public class TransferMoneyTest extends BaseTest {
                 .size()).isEqualTo(1);
 
         // находим аккаунт - получатель
-        Account accountReceiverResponse = accountList
-                .stream()
-                .filter(acc -> acc.getId() == accountReceiver.getId())
-                .findFirst()
-                .get();
+        Account accountReceiverResponse = UserSteps.getAccountById(accountList, accountReceiver.getId());
 
         // проверяем баланс аккаунта получателя и количество транзакций
         softly.assertThat(accountReceiverResponse
@@ -448,65 +276,34 @@ public class TransferMoneyTest extends BaseTest {
         double transferAmount = 100.0;
 
         // создаем юзера
-        CreateUserRequestModel userRequestModel = CreateUserRequestModel.builder()
-                .username(RandomData.getUsername())
-                .password(RandomData.getPassword())
-                .role(UserRole.USER.toString())
-                .build();
-
-        new AdminCreateUserRequester(
-                RequestSpecs.adminSpec(),
-                ResponseSpecs.entityWasCreated())
-                .execute(userRequestModel);
+        CreateUserRequestModel userRequestModel = AdminSteps.createUser();
 
         // создаем аккаунт 1
-        CreateAccountResponseModel accountSender =
-                new CreateAccountRequester(
-                        RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                        ResponseSpecs.entityWasCreated())
-                        .execute()
-                        .extract()
-                        .as(CreateAccountResponseModel.class);
+        CreateAccountResponseModel accountSender = UserSteps.createAccount(userRequestModel);
 
         // добавляем депозит на аккаунт 1
-        DepositMoneyRequestModel depositMoneyRequestModel = DepositMoneyRequestModel.builder()
-                .id(accountSender.getId())
-                .balance(deposit)
-                .build();
+        UserSteps.deposit(userRequestModel, accountSender.getId(), deposit);
 
-        new DepositMoneyRequester(RequestSpecs.authAsUser(
-                userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK()).execute(depositMoneyRequestModel);
+        // создаем модель трансфера
+        TransferMoneyRequestModel transferMoneyRequestModel = transferRequest(
+                accountSender.getId(),
+                accountSender.getId() + 1,
+                transferAmount);
 
         // выполняем трансфер с существующего аккаунта на несуществующий
-        TransferMoneyRequestModel transferMoneyRequestModel = TransferMoneyRequestModel.builder()
-                .senderAccountId(accountSender.getId())
-                .receiverAccountId(accountSender.getId() + 1)
-                .amount(transferAmount)
-                .build();
-
-        new TransferMoneyRequester(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsBadRequestOnlyBody(BAD_REQUEST_MESSAGE_INVALID_TRANSFER)).execute(transferMoneyRequestModel);
+        UserSteps.transferExpecting(
+                userRequestModel,
+                transferMoneyRequestModel,
+                ResponseSpecs.requestReturnsBadRequestOnlyBody(BAD_REQUEST_MESSAGE_INVALID_TRANSFER));
 
         // достаем список аккаунтов для юзера
-        List<Account> accountList = new GetCustomerAccountRequester(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .execute()
-                .extract()
-                .as(new TypeRef<List<Account>>() {
-                });
+        List<Account> accountList = UserSteps.getAccountsList(userRequestModel);
 
         // проверяем размер количества аккаунтов
         softly.assertThat(accountList.size()).isEqualTo(1);
 
         // находим аккаунт - отправитель
-        Account accountSenderResponse = accountList
-                .stream()
-                .filter(acc -> acc.getId() == accountSender.getId())
-                .findFirst()
-                .get();
+        Account accountSenderResponse = UserSteps.getAccountById(accountList, accountSender.getId());
 
         // проверяем баланс аккаунта отправителя и количество транзакций
         softly.assertThat(accountSenderResponse
@@ -521,55 +318,31 @@ public class TransferMoneyTest extends BaseTest {
         double transferAmount = 100.0;
 
         // создаем юзера
-        CreateUserRequestModel userRequestModel = CreateUserRequestModel.builder()
-                .username(RandomData.getUsername())
-                .password(RandomData.getPassword())
-                .role(UserRole.USER.toString())
-                .build();
-
-        new AdminCreateUserRequester(
-                RequestSpecs.adminSpec(),
-                ResponseSpecs.entityWasCreated())
-                .execute(userRequestModel);
+        CreateUserRequestModel userRequestModel = AdminSteps.createUser();
 
         // создаем аккаунт - receiver
-        CreateAccountResponseModel accountReceiver =
-                new CreateAccountRequester(
-                        RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                        ResponseSpecs.entityWasCreated())
-                        .execute()
-                        .extract()
-                        .as(CreateAccountResponseModel.class);
+        CreateAccountResponseModel accountReceiver = UserSteps.createAccount(userRequestModel);
+
+        // создаем модель запроса трансфера
+        TransferMoneyRequestModel transferMoneyRequestModel = transferRequest(
+                accountReceiver.getId() + 1,
+                accountReceiver.getId(),
+                transferAmount);
 
         // выполняем трансфер с несуществующего аккаунта на аккаунт ресивер
-        TransferMoneyRequestModel transferMoneyRequestModel = TransferMoneyRequestModel.builder()
-                .senderAccountId(accountReceiver.getId() + 1)
-                .receiverAccountId(accountReceiver.getId())
-                .amount(transferAmount)
-                .build();
-
-        new TransferMoneyRequester(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsForbiddenOnlyBody(UNAUTHENTIC_ERROR_MESSAGE)).execute(transferMoneyRequestModel);
+        UserSteps.transferExpecting(
+                userRequestModel,
+                transferMoneyRequestModel,
+                ResponseSpecs.requestReturnsForbiddenOnlyBody(UNAUTHENTIC_ERROR_MESSAGE));
 
         // достаем список аккаунтов для юзера
-        List<Account> accountList = new GetCustomerAccountRequester(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .execute()
-                .extract()
-                .as(new TypeRef<List<Account>>() {
-                });
+        List<Account> accountList = UserSteps.getAccountsList(userRequestModel);
 
         // проверяем размер количества аккаунтов
         softly.assertThat(accountList.size()).isEqualTo(1);
 
         // находим аккаунт - получатель
-        Account accountReceiverResponse = accountList
-                .stream()
-                .filter(acc -> acc.getId() == accountReceiver.getId())
-                .findFirst()
-                .get();
+        Account accountReceiverResponse = UserSteps.getAccountById(accountList, accountReceiver.getId());
 
         // проверяем баланс аккаунта получателя и количество транзакций
         softly.assertThat(accountReceiverResponse
@@ -585,65 +358,33 @@ public class TransferMoneyTest extends BaseTest {
         double transferAmount = 100.0;
 
         // создаем юзера
-        CreateUserRequestModel userRequestModel = CreateUserRequestModel.builder()
-                .username(RandomData.getUsername())
-                .password(RandomData.getPassword())
-                .role(UserRole.USER.toString())
-                .build();
-
-        new AdminCreateUserRequester(
-                RequestSpecs.adminSpec(),
-                ResponseSpecs.entityWasCreated())
-                .execute(userRequestModel);
+        CreateUserRequestModel userRequestModel = AdminSteps.createUser();
 
         // создаем аккаунт 1
-        CreateAccountResponseModel accountSender =
-                new CreateAccountRequester(
-                        RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                        ResponseSpecs.entityWasCreated())
-                        .execute()
-                        .extract()
-                        .as(CreateAccountResponseModel.class);
+        CreateAccountResponseModel accountSender = UserSteps.createAccount(userRequestModel);
 
         // добавляем депозит на аккаунт 1
-        DepositMoneyRequestModel depositMoneyRequestModel = DepositMoneyRequestModel.builder()
-                .id(accountSender.getId())
-                .balance(deposit)
-                .build();
+        UserSteps.deposit(userRequestModel, accountSender.getId(), deposit);
 
-        new DepositMoneyRequester(RequestSpecs.authAsUser(
-                userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK()).execute(depositMoneyRequestModel);
+        // создаем модель запроса трансфера
+        TransferMoneyRequestModel transferMoneyRequestModel = transferRequest(accountSender.getId(),
+                accountSender.getId(),
+                transferAmount);
 
         // выполняем трансфер с аккаунта 1 на аккаунт 1
-        TransferMoneyRequestModel transferMoneyRequestModel = TransferMoneyRequestModel.builder()
-                .senderAccountId(accountSender.getId())
-                .receiverAccountId(accountSender.getId())
-                .amount(transferAmount)
-                .build();
-
-        new TransferMoneyRequester(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsBadRequestOnlyBody(BAD_REQUEST_MESSAGE_INVALID_TRANSFER)).execute(transferMoneyRequestModel);
+        UserSteps.transferExpecting(
+                userRequestModel,
+                transferMoneyRequestModel,
+                ResponseSpecs.requestReturnsBadRequestOnlyBody(BAD_REQUEST_MESSAGE_INVALID_TRANSFER));
 
         // достаем список аккаунтов для юзера
-        List<Account> accountList = new GetCustomerAccountRequester(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .execute()
-                .extract()
-                .as(new TypeRef<List<Account>>() {
-                });
+        List<Account> accountList = UserSteps.getAccountsList(userRequestModel);
 
         // проверяем размер количества аккаунтов
         softly.assertThat(accountList.size()).isEqualTo(1);
 
         // находим аккаунт - отправитель
-        Account accountSenderResponse = accountList
-                .stream()
-                .filter(acc -> acc.getId() == accountSender.getId())
-                .findFirst()
-                .get();
+        Account accountSenderResponse = UserSteps.getAccountById(accountList, accountSender.getId());
 
         // проверяем баланс аккаунта отправителя и количество транзакций
         softly.assertThat(accountSenderResponse
@@ -651,6 +392,15 @@ public class TransferMoneyTest extends BaseTest {
         softly.assertThat(accountSenderResponse
                 .getTransactions()
                 .size()).isEqualTo(1);
+    }
+
+    // создание модели запроса трансфера
+    private TransferMoneyRequestModel transferRequest(long senderId, long receiverId, double amount) {
+        return TransferMoneyRequestModel.builder()
+                .senderAccountId(senderId)
+                .receiverAccountId(receiverId)
+                .amount(amount)
+                .build();
     }
 }
 

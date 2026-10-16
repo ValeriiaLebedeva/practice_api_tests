@@ -3,6 +3,7 @@ package iteration1;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import requests.skelethon.steps.AdminSteps;
 
 public class BaseTest {
     protected SoftAssertions softly;
@@ -14,6 +15,11 @@ public class BaseTest {
 
     @AfterEach
     public void afterTest() {
-        softly.assertAll();
+        try {
+            softly.assertAll();
+        } finally {
+            // выполнится, даже если soft-проверки упали
+            AdminSteps.cleanUp();
+        }
     }
 }

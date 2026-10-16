@@ -1,16 +1,16 @@
 package iteration2;
 
-import generators.RandomData;
+import generators.RandomModelGenerator;
 import iteration1.BaseTest;
 import models.*;
+import models.assertions.ModelAssertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import requests.AdminCreateUserRequester;
-import requests.ChangeUserNameRequester;
-import requests.GetCustomerProfileRequester;
-import specs.RequestSpecs;
+import requests.skelethon.requesters.*;
+import requests.skelethon.steps.AdminSteps;
+import requests.skelethon.steps.UserSteps;
 import specs.ResponseSpecs;
 
 import java.util.stream.Stream;
@@ -22,36 +22,22 @@ public class ChangeUserNameTest extends BaseTest {
     @Test
     public void userCanChangeProfileNamePositiveTest() {
 
-        CreateUserRequestModel userRequestModel = CreateUserRequestModel.builder()
-                .username(RandomData.getUsername())
-                .password(RandomData.getPassword())
-                .role(UserRole.USER.toString())
-                .build();
+        CreateUserRequestModel userRequestModel = AdminSteps.createUser();
 
-        new AdminCreateUserRequester(
-                RequestSpecs.adminSpec(),
-                ResponseSpecs.entityWasCreated())
-                .execute(userRequestModel);
+        UpdateCustomerProfileRequestModel updateCustomerProfileRequestModel =
+                RandomModelGenerator.generate(UpdateCustomerProfileRequestModel.class);
 
-        UpdateCustomerProfileRequestModel updateCustomerProfileRequestModel = UpdateCustomerProfileRequestModel.builder()
-                .name(RandomData.getProfileName())
-                .build();
+        UpdateCustomerProfileResponseModel updateCustomerProfileResponseModel =
+                UserSteps.updateProfile(userRequestModel, updateCustomerProfileRequestModel);
 
-        UpdateCustomerProfileResponseModel updateCustomerProfileResponseModel = new ChangeUserNameRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .execute(updateCustomerProfileRequestModel)
-                .extract()
-                .as(UpdateCustomerProfileResponseModel.class);
-
-        softly.assertThat(updateCustomerProfileRequestModel.getName()).isEqualTo(updateCustomerProfileResponseModel.getCustomer().getName());
+        // request.name == response.customer.name (правило в model-comparison.properties)
+        ModelAssertions.assertThatModels(updateCustomerProfileRequestModel, updateCustomerProfileResponseModel).match(softly);
         softly.assertThat(SUCCESSFUL_MESSAGE).isEqualTo(updateCustomerProfileResponseModel.getMessage());
 
-        Customer customer = new GetCustomerProfileRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .execute()
-                .extract().as(Customer.class);
+        // имя действительно сохранилось
+        Customer customer = UserSteps.getProfile(userRequestModel);
+        softly.assertThat(updateCustomerProfileRequestModel.getName()).isEqualTo(customer.getName());
 
-        softly.assertThat(customer.getName()).isEqualTo(updateCustomerProfileRequestModel.getName());
     }
 
     public static Stream<Arguments> userInvalidData() {
@@ -64,30 +50,19 @@ public class ChangeUserNameTest extends BaseTest {
     @ParameterizedTest
     public void userCanChangeProfileNameNegativeTest(String profileName, String message) {
 
-        CreateUserRequestModel userRequestModel = CreateUserRequestModel.builder()
-                .username(RandomData.getUsername())
-                .password(RandomData.getPassword())
-                .role(UserRole.USER.toString())
-                .build();
+        CreateUserRequestModel userRequestModel = AdminSteps.createUser();
 
         UpdateCustomerProfileRequestModel updateCustomerProfileRequestModel = UpdateCustomerProfileRequestModel.builder()
                 .name(profileName)
                 .build();
 
-        new AdminCreateUserRequester(
-                RequestSpecs.adminSpec(),
-                ResponseSpecs.entityWasCreated())
-                .execute(userRequestModel);
+        UserSteps.updateProfileExpecting(
+                userRequestModel,
+                updateCustomerProfileRequestModel,
+                ResponseSpecs.requestReturnsBadRequestOnlyBody(message));
 
-        new ChangeUserNameRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsBadRequestOnlyBody(message))
-                .execute(updateCustomerProfileRequestModel);
+        Customer customer = UserSteps.getProfile(userRequestModel);
 
-        Customer customer = new GetCustomerProfileRequester(RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .execute()
-                .extract().as(Customer.class);
-
-        softly.assertThat(customer.getName()).isNotEqualTo(profileName);
+        softly.assertThat(profileName).isNotEqualTo(customer.getName());
     }
 }
