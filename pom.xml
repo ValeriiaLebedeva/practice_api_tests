@@ -75,6 +75,11 @@
             <artifactId>assertj-core</artifactId>
             <version>3.25.3</version>
         </dependency>
+        <dependency>
+            <groupId>com.codeborne</groupId>
+            <artifactId>selenide</artifactId>
+            <version>7.19.0</version>
+        </dependency>
     </dependencies>
 
 </project>

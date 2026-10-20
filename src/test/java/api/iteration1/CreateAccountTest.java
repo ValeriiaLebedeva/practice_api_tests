@@ -1,4 +1,4 @@
-package iteration1;
+package api.iteration1;
 
 import models.CreateUserRequestModel;
 import org.junit.jupiter.api.Test;

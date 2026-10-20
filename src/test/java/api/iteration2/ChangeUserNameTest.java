@@ -1,14 +1,13 @@
-package iteration2;
+package api.iteration2;
 
 import generators.RandomModelGenerator;
-import iteration1.BaseTest;
+import api.iteration1.BaseTest;
 import models.*;
 import models.assertions.ModelAssertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import requests.skelethon.requesters.*;
 import requests.skelethon.steps.AdminSteps;
 import requests.skelethon.steps.UserSteps;
 import specs.ResponseSpecs;
