@@ -1,15 +1,15 @@
 package api.iteration2;
 
 import api.iteration1.BaseTest;
-import models.*;
-import models.assertions.ModelAssertions;
+import api.models.*;
+import api.models.assertions.ModelAssertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import requests.skelethon.steps.AdminSteps;
-import requests.skelethon.steps.UserSteps;
-import specs.ResponseSpecs;
+import api.skelethon.steps.AdminSteps;
+import api.skelethon.steps.UserSteps;
+import api.specs.ResponseSpecs;
 
 import java.util.List;
 import java.util.stream.Stream;
