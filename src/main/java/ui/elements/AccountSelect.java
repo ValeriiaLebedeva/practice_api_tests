@@ -1,4 +1,4 @@
-package ui.pages.components;
+package ui.elements;
 
 import com.codeborne.selenide.CollectionCondition;
 import com.codeborne.selenide.Condition;
@@ -10,39 +10,39 @@ import java.util.stream.Stream;
 
 // Дропдаун выбора аккаунта. Он одинаковый на страницах депозита и перевода,
 // поэтому вынесен в компонент, а не продублирован в двух страницах.
-public class AccountSelect {
+public class AccountSelect extends BaseElement {
 
     private static final String PLACEHOLDER_OPTION = "-- Choose an account --";
 
-    private final SelenideElement select;
-
-    public AccountSelect(SelenideElement select) {
-        this.select = select;
+    public AccountSelect(SelenideElement element) {
+        super(element);
     }
 
     // аккаунты подгружаются асинхронно: ждём плейсхолдер (+1) и все аккаунты пользователя
     public AccountSelect waitForAccounts(int accountsCount) {
-        select.$$("option").shouldHave(CollectionCondition.size(accountsCount + 1));
+        findAll("option").shouldHave(CollectionCondition.size(accountsCount + 1));
         return this;
     }
 
     // значение пункта в дропдауне это id аккаунта
     public AccountSelect selectAccount(long accountId) {
-        select.selectOptionByValue(String.valueOf(accountId));
+        element.selectOptionByValue(String.valueOf(accountId));
         return this;
     }
 
     public AccountSelect checkOption(long accountId, String accountNumber, double balance) {
-        select.$("option[value='" + accountId + "']")
+        find("option[value='" + accountId + "']")
                 .shouldHave(Condition.exactText(optionText(accountNumber, balance)));
         return this;
     }
 
-    // все пункты по порядку: первым всегда плейсхолдер
+    // Все пункты вместе с плейсхолдером, порядок не важен: приложение не гарантирует порядок аккаунтов
+    // (в одном запуске аккаунты шли в порядке ACC62, ACC61), и тест не должен от него зависеть.
     public AccountSelect checkAllOptions(String... accountOptionTexts) {
         String[] expected = Stream.concat(Stream.of(PLACEHOLDER_OPTION), Arrays.stream(accountOptionTexts))
                 .toArray(String[]::new);
-        select.$$("option").shouldHave(CollectionCondition.exactTexts(expected));
+        findAll("option").first().shouldHave(Condition.exactText(PLACEHOLDER_OPTION));
+        findAll("option").shouldHave(CollectionCondition.exactTextsCaseSensitiveInAnyOrder(expected));
         return this;
     }
 

@@ -4,8 +4,9 @@ import api.models.Account;
 import api.models.CreateAccountResponseModel;
 import api.models.CreateUserRequestModel;
 import api.models.TransactionType;
-import api.skelethon.steps.AdminSteps;
-import api.skelethon.steps.UserSteps;
+import api.steps.UserSteps;
+import common.annotations.WithAccount;
+import common.storage.SessionStorage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -14,13 +15,14 @@ import ui.iteration1.BaseUITest;
 import ui.pages.BankAlert;
 import ui.pages.DepositPage;
 import ui.pages.UserDashboard;
-import ui.pages.components.AccountSelect;
+import ui.elements.AccountSelect;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Stream;
 
 
+// Предусловия (пользователь, аккаунты, баланс) делает @WithAccount, аккаунты берём из SessionStorage.
 public class DepositMoneyTest extends BaseUITest {
 
     private static final double INITIAL_BALANCE = 100;
@@ -30,16 +32,13 @@ public class DepositMoneyTest extends BaseUITest {
         return Stream.of(Arguments.of("50.5"), Arguments.of("5000"));
     }
 
+    @WithAccount(count = 2, balance = INITIAL_BALANCE)
     @MethodSource("depositAmountValidData")
     @ParameterizedTest
     public void userCanDepositMoneyTest(String amount) {
-        // предшаги через API
-        CreateUserRequestModel user = AdminSteps.createUser();
-        CreateAccountResponseModel account1 = UserSteps.createAccount(user);
-        CreateAccountResponseModel account2 = UserSteps.createAccount(user);
-        UserSteps.deposit(user, account1.getId(), INITIAL_BALANCE);
-
-        authAsUser(user);
+        CreateUserRequestModel user = SessionStorage.getUser();
+        CreateAccountResponseModel account1 = SessionStorage.getAccount(1);
+        CreateAccountResponseModel account2 = SessionStorage.getAccount(2);
 
         // целевое действие на UI, алерт и переход на дашборд
         new DepositPage().open()
@@ -78,14 +77,12 @@ public class DepositMoneyTest extends BaseUITest {
                 Arguments.of("5000.01", BankAlert.DEPOSIT_AMOUNT_TOO_BIG));
     }
 
+    @WithAccount(balance = INITIAL_BALANCE)
     @ParameterizedTest
     @MethodSource("invalidAmountData")
     public void userCanNotDepositInvalidAmountTest(String amount, BankAlert expectedAlert) {
-        CreateUserRequestModel user = AdminSteps.createUser();
-        CreateAccountResponseModel account = UserSteps.createAccount(user);
-        UserSteps.deposit(user, account.getId(), INITIAL_BALANCE);
-
-        authAsUser(user);
+        CreateUserRequestModel user = SessionStorage.getUser();
+        CreateAccountResponseModel account = SessionStorage.getAccount();
 
         new DepositPage().open()
                 .waitForAccountsLoaded(1)
@@ -98,12 +95,11 @@ public class DepositMoneyTest extends BaseUITest {
     }
 
     // ---------- D-3. Аккаунт не выбран ----------
+    @WithAccount
     @Test
     public void userCanNotDepositWithoutSelectedAccountTest() {
-        CreateUserRequestModel user = AdminSteps.createUser();
-        CreateAccountResponseModel account = UserSteps.createAccount(user);
-
-        authAsUser(user);
+        CreateUserRequestModel user = SessionStorage.getUser();
+        CreateAccountResponseModel account = SessionStorage.getAccount();
 
         // ничего не выбираем и не вводим
         new DepositPage().open()
@@ -115,14 +111,11 @@ public class DepositMoneyTest extends BaseUITest {
     }
 
     // ---------- D-4. Дропдаун показывает аккаунты и балансы ----------
+    @WithAccount(count = 2, balance = 100.5)
     @Test
     public void depositPageShowsAccountsWithBalancesTest() {
-        CreateUserRequestModel user = AdminSteps.createUser();
-        CreateAccountResponseModel account1 = UserSteps.createAccount(user);
-        CreateAccountResponseModel account2 = UserSteps.createAccount(user);
-        UserSteps.deposit(user, account1.getId(), 100.5);
-
-        authAsUser(user);
+        CreateAccountResponseModel account1 = SessionStorage.getAccount(1);
+        CreateAccountResponseModel account2 = SessionStorage.getAccount(2);
 
         new DepositPage().open()
                 .waitForAccountsLoaded(2)
@@ -135,13 +128,11 @@ public class DepositMoneyTest extends BaseUITest {
     // ---------- D-5. Бэк отклонил депозит: пользователь видит общий алерт ----------
     // 0.001: фронт пропускает (больше 0 и не больше 5000), бэк отклоняет (минимум 0.01).
     // Мок не нужен: ошибка настоящая.
+    @WithAccount(balance = INITIAL_BALANCE)
     @Test
     public void userSeesGenericErrorWhenBackendRejectsDepositTest() {
-        CreateUserRequestModel user = AdminSteps.createUser();
-        CreateAccountResponseModel account = UserSteps.createAccount(user);
-        UserSteps.deposit(user, account.getId(), INITIAL_BALANCE);
-
-        authAsUser(user);
+        CreateUserRequestModel user = SessionStorage.getUser();
+        CreateAccountResponseModel account = SessionStorage.getAccount();
 
         new DepositPage().open()
                 .waitForAccountsLoaded(1)
