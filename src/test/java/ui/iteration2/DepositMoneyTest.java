@@ -15,7 +15,7 @@ import ui.iteration1.BaseUITest;
 import ui.pages.BankAlert;
 import ui.pages.DepositPage;
 import ui.pages.UserDashboard;
-import ui.pages.components.AccountSelect;
+import ui.elements.AccountSelect;
 
 import java.math.BigDecimal;
 import java.util.List;

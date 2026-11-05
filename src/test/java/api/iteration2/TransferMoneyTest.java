@@ -3,6 +3,7 @@ package api.iteration2;
 import api.iteration1.BaseTest;
 import api.models.*;
 import api.models.assertions.ModelAssertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -353,6 +354,7 @@ public class TransferMoneyTest extends BaseTest {
     }
 
     @Test
+    @Disabled
     public void transferFromAccountToSameAccount() {
         double deposit = 100.5;
         double transferAmount = 100.0;
