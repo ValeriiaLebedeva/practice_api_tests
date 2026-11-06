@@ -273,6 +273,7 @@ public class TransferMoneyTest extends BaseTest {
 
     @Test
     public void transferFromAccountExistToAccountNotExist() {
+        long nonExistingAccountId = -1L;
         double deposit = 100.5;
         double transferAmount = 100.0;
 
@@ -288,7 +289,7 @@ public class TransferMoneyTest extends BaseTest {
         // создаем модель трансфера
         TransferMoneyRequestModel transferMoneyRequestModel = transferRequest(
                 accountSender.getId(),
-                accountSender.getId() + 1,
+                nonExistingAccountId,
                 transferAmount);
 
         // выполняем трансфер с существующего аккаунта на несуществующий

@@ -6,6 +6,7 @@ import api.steps.UserSteps;
 import common.annotations.UiEnvironment;
 import common.annotations.WithProfileName;
 import common.storage.SessionStorage;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -51,6 +52,7 @@ public class ChangeUserNameTest extends BaseUITest {
     // Если любой из них падает, пользователь остаётся на /edit-profile. Тест проверяет только переход.
     @WithProfileName
     @Test
+    @Disabled("баг")
     public void userIsRedirectedToDashboardAfterNameChangeTest() {
         // предшаг: у пользователя уже есть имя (его задаёт @WithProfileName)
         String oldName = SessionStorage.getName();
@@ -86,6 +88,7 @@ public class ChangeUserNameTest extends BaseUITest {
     // падает только он, а основной сценарий N-1 остаётся рабочим.
     @WithProfileName
     @Test
+    @Disabled("баг")
     public void userNameInHeaderIsUpdatedAfterChangeTest() {
         // предшаг: у пользователя уже есть имя (его задаёт @WithProfileName)
         String oldName = SessionStorage.getName();

@@ -27,8 +27,9 @@ public class UiEnvironmentExtension implements BeforeEachCallback {
         Configuration.remote = pick(env.map(UiEnvironment::remote), "uiRemote");
         Configuration.browser = pick(env.map(UiEnvironment::browser), "browser");
         Configuration.browserSize = pick(env.map(UiEnvironment::browserSize), "browserSize");
+        Configuration.headless = env.map(UiEnvironment::headless).orElse(true);
 
-        boolean vnc = env.map(UiEnvironment::vnc).orElse(true);
+        boolean vnc = env.map(UiEnvironment::vnc).orElse(false);
         Configuration.browserCapabilities.setCapability("selenoid:options",
                 Map.of("enableVNC", vnc, "enableLog", true));
     }

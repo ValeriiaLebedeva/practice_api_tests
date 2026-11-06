@@ -32,6 +32,8 @@ public class CreateUserTest extends BaseUITest {
                 .findFirst().get();
 
         ModelAssertions.assertThatModels(newUser, createdUser).match();
+
+        AdminSteps.deleteUser(createdUser.getId());
     }
 
     @Test

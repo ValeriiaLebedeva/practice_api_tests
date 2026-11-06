@@ -37,8 +37,8 @@ public class AdminPanel extends BasePage<AdminPanel> {
         return RetryUtils.retry(
                 () -> getAllUsers().stream().filter(it -> it.getUsername().equals(username)).findAny().orElse(null),
                 result -> result != null,
-                3,
-                1000
+                10,
+                300
         );
     }
 }
