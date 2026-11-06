@@ -5,8 +5,11 @@ import api.models.Account;
 import api.models.CreateAccountResponseModel;
 import api.models.CreateUserRequestModel;
 import api.models.TransactionType;
-import api.skelethon.steps.AdminSteps;
-import api.skelethon.steps.UserSteps;
+import api.steps.UserSteps;
+import common.annotations.UserSession;
+import common.annotations.WithAccount;
+import common.annotations.WithProfileName;
+import common.storage.SessionStorage;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,6 +19,8 @@ import ui.pages.BankAlert;
 import ui.pages.TransferPage;
 
 
+// Пользователь 1 (он же авторизован) и его аккаунты создаются аннотациями.
+// Аккаунт 1 - отправитель. Второго пользователя (получателя) готовим в самом тесте.
 public class TransferMoneyTest extends BaseUITest {
 
     private static final double DEPOSIT = 500;
@@ -26,16 +31,14 @@ public class TransferMoneyTest extends BaseUITest {
     enum MissingField {SENDER_ACCOUNT, RECIPIENT_ACCOUNT, AMOUNT, CONFIRMATION}
 
     // ---------- T-1. Успешный перевод между своими аккаунтами ----------
+    @WithProfileName
+    @WithAccount(count = 2, balance = DEPOSIT)
     @Test
     public void userCanTransferMoneyBetweenOwnAccountsTest() {
-        // предшаги через API
-        CreateUserRequestModel user = AdminSteps.createUser();
-        String userName = UserSteps.setRandomProfileName(user);
-        CreateAccountResponseModel sender = UserSteps.createAccount(user);
-        CreateAccountResponseModel receiver = UserSteps.createAccount(user);
-        UserSteps.deposit(user, sender.getId(), DEPOSIT);
-
-        authAsUser(user);
+        CreateUserRequestModel user = SessionStorage.getUser();
+        String userName = SessionStorage.getName();
+        CreateAccountResponseModel sender = SessionStorage.getAccount(1);
+        CreateAccountResponseModel receiver = SessionStorage.getAccount(2);
 
         // целевое действие на UI и проверки UI
         new TransferPage().open()
@@ -51,16 +54,14 @@ public class TransferMoneyTest extends BaseUITest {
 
     // Выключен: по текущему коду страница не перезапрашивает аккаунты после перевода.
     // Включить после ответа разработки (должен ли дропдаун обновляться или нужен переход на другую страницу).
+    @WithProfileName
+    @WithAccount(count = 2, balance = DEPOSIT)
     @Test
     @Disabled("Ждём ответ разработки: должны ли обновляться балансы в дропдауне после перевода")
     public void balancesInDropdownAreUpdatedAfterTransferTest() {
-        CreateUserRequestModel user = AdminSteps.createUser();
-        String userName = UserSteps.setRandomProfileName(user);
-        CreateAccountResponseModel sender = UserSteps.createAccount(user);
-        CreateAccountResponseModel receiver = UserSteps.createAccount(user);
-        UserSteps.deposit(user, sender.getId(), DEPOSIT);
-
-        authAsUser(user);
+        String userName = SessionStorage.getName();
+        CreateAccountResponseModel sender = SessionStorage.getAccount(1);
+        CreateAccountResponseModel receiver = SessionStorage.getAccount(2);
 
         new TransferPage().open()
                 .waitForAccountsLoaded(2)
@@ -73,17 +74,17 @@ public class TransferMoneyTest extends BaseUITest {
     }
 
     // ---------- T-2. Успешный перевод другому пользователю ----------
+    // user1 - отправитель, авторизован; user2 - получатель, готовим его в тесте
+    @UserSession(users = 2)
+    @WithAccount(balance = DEPOSIT)
     @Test
     public void userCanTransferMoneyToAnotherUserTest() {
-        CreateUserRequestModel user1 = AdminSteps.createUser();
-        CreateAccountResponseModel sender = UserSteps.createAccount(user1);
-        UserSteps.deposit(user1, sender.getId(), DEPOSIT);
+        CreateUserRequestModel user1 = SessionStorage.getUser(1);
+        CreateUserRequestModel user2 = SessionStorage.getUser(2);
+        CreateAccountResponseModel sender = SessionStorage.getAccount();
 
-        CreateUserRequestModel user2 = AdminSteps.createUser();
         String user2Name = UserSteps.setRandomProfileName(user2);
         CreateAccountResponseModel receiver = UserSteps.createAccount(user2);
-
-        authAsUser(user1);
 
         new TransferPage().open()
                 .waitForAccountsLoaded(1)
@@ -96,16 +97,16 @@ public class TransferMoneyTest extends BaseUITest {
 
     // ---------- T-3. Успешный перевод пользователю без имени ----------
     // Фиксирует текущее поведение: если у получателя имя не задано, сверка имени пропускается.
+    @UserSession(users = 2)
+    @WithAccount(balance = DEPOSIT)
     @Test
     public void userCanTransferMoneyToUserWithoutNameTest() {
-        CreateUserRequestModel user1 = AdminSteps.createUser();
-        CreateAccountResponseModel sender = UserSteps.createAccount(user1);
-        UserSteps.deposit(user1, sender.getId(), DEPOSIT);
+        CreateUserRequestModel user1 = SessionStorage.getUser(1);
+        CreateUserRequestModel user2 = SessionStorage.getUser(2);
+        CreateAccountResponseModel sender = SessionStorage.getAccount();
 
-        CreateUserRequestModel user2 = AdminSteps.createUser(); // имя не задаём
+        // имя user2 не задаём
         CreateAccountResponseModel receiver = UserSteps.createAccount(user2);
-
-        authAsUser(user1);
 
         // имя получателя оставляем пустым
         new TransferPage().open()
@@ -118,16 +119,15 @@ public class TransferMoneyTest extends BaseUITest {
     }
 
     // ---------- T-4. Валидация формы (параметризованный) ----------
+    @WithProfileName
+    @WithAccount(count = 2, balance = DEPOSIT)
     @ParameterizedTest
     @EnumSource(MissingField.class)
     public void userCanNotTransferWithIncompleteFormTest(MissingField missing) {
-        CreateUserRequestModel user = AdminSteps.createUser();
-        String userName = UserSteps.setRandomProfileName(user);
-        CreateAccountResponseModel sender = UserSteps.createAccount(user);
-        CreateAccountResponseModel receiver = UserSteps.createAccount(user);
-        UserSteps.deposit(user, sender.getId(), DEPOSIT);
-
-        authAsUser(user);
+        CreateUserRequestModel user = SessionStorage.getUser();
+        String userName = SessionStorage.getName();
+        CreateAccountResponseModel sender = SessionStorage.getAccount(1);
+        CreateAccountResponseModel receiver = SessionStorage.getAccount(2);
 
         new TransferPage().open()
                 .waitForAccountsLoaded(2)
@@ -146,13 +146,11 @@ public class TransferMoneyTest extends BaseUITest {
     }
 
     // ---------- T-5. Получатель не найден ----------
+    @WithAccount(balance = DEPOSIT)
     @Test
     public void userCanNotTransferToNonExistentAccountTest() {
-        CreateUserRequestModel user = AdminSteps.createUser();
-        CreateAccountResponseModel sender = UserSteps.createAccount(user);
-        UserSteps.deposit(user, sender.getId(), DEPOSIT);
-
-        authAsUser(user);
+        CreateUserRequestModel user = SessionStorage.getUser();
+        CreateAccountResponseModel sender = SessionStorage.getAccount();
 
         String nonExistentAccountNumber = "ACC" + (sender.getId() + 100_000);
         new TransferPage().open()
@@ -165,17 +163,16 @@ public class TransferMoneyTest extends BaseUITest {
     }
 
     // ---------- T-6. Имя получателя не совпадает ----------
+    @UserSession(users = 2)
+    @WithAccount(balance = DEPOSIT)
     @Test
     public void userCanNotTransferWhenRecipientNameDoesNotMatchTest() {
-        CreateUserRequestModel user1 = AdminSteps.createUser();
-        CreateAccountResponseModel sender = UserSteps.createAccount(user1);
-        UserSteps.deposit(user1, sender.getId(), DEPOSIT);
+        CreateUserRequestModel user1 = SessionStorage.getUser(1);
+        CreateUserRequestModel user2 = SessionStorage.getUser(2);
+        CreateAccountResponseModel sender = SessionStorage.getAccount();
 
-        CreateUserRequestModel user2 = AdminSteps.createUser();
         UserSteps.setRandomProfileName(user2);
         CreateAccountResponseModel receiver = UserSteps.createAccount(user2);
-
-        authAsUser(user1);
 
         // имя, которое не принадлежит пользователю 2
         new TransferPage().open()
@@ -190,17 +187,14 @@ public class TransferMoneyTest extends BaseUITest {
 
     // ---------- T-7. Ошибка бэка отображается ----------
     // Из ошибок бэка берём одну: сумма больше баланса. Остальные покрыты API-тестами.
+    @WithProfileName
+    @WithAccount(count = 2, balance = 100)
     @Test
     public void userSeesBackendErrorWhenAmountExceedsBalanceTest() {
-        double smallDeposit = 100;
-
-        CreateUserRequestModel user = AdminSteps.createUser();
-        String userName = UserSteps.setRandomProfileName(user);
-        CreateAccountResponseModel sender = UserSteps.createAccount(user);
-        CreateAccountResponseModel receiver = UserSteps.createAccount(user);
-        UserSteps.deposit(user, sender.getId(), smallDeposit);
-
-        authAsUser(user);
+        CreateUserRequestModel user = SessionStorage.getUser();
+        String userName = SessionStorage.getName();
+        CreateAccountResponseModel sender = SessionStorage.getAccount(1);
+        CreateAccountResponseModel receiver = SessionStorage.getAccount(2);
 
         new TransferPage().open()
                 .waitForAccountsLoaded(2)
@@ -208,11 +202,11 @@ public class TransferMoneyTest extends BaseUITest {
                 .clickSend()
                 .checkAlertMessageAndAccept(BankAlert.TRANSFER_INSUFFICIENT_FUNDS);
 
-        assertAccountUnchanged(user, sender, smallDeposit, 1);
+        assertAccountUnchanged(user, sender, 100, 1);
         assertAccountUnchanged(user, receiver, 0, 0);
     }
 
-    // ---------- вспомогательные методы ----------
+    // ---------- вспомогательные методы (только для переводов) ----------
     private static String successAlert(CreateAccountResponseModel receiver) {
         return BankAlert.TRANSFER_SUCCESSFUL.format(AMOUNT_TEXT, receiver.getAccountNumber());
     }

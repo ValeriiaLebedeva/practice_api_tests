@@ -4,7 +4,7 @@ import api.models.CreateUserRequestModel;
 import org.junit.jupiter.api.Test;
 import api.skelethon.Endpoint;
 import api.skelethon.requesters.CrudRequester;
-import api.skelethon.steps.AdminSteps;
+import api.steps.AdminSteps;
 import api.specs.RequestSpecs;
 import api.specs.ResponseSpecs;
 
@@ -21,6 +21,5 @@ public class CreateAccountTest extends BaseTest {
                 .post(null);
 
         // запросить все аккаунты пользователя и проверить, что наш аккаунт там
-
     }
 }
