@@ -29,4 +29,6 @@ public @interface UiEnvironment {
 
     // видео-просмотр сессии в Selenoid (VNC)
     boolean vnc() default true;
+
+    boolean headless() default true;
 }
