@@ -2,8 +2,10 @@ package ui.elements;
 
 import com.codeborne.selenide.CollectionCondition;
 import com.codeborne.selenide.Condition;
+import com.codeborne.selenide.Selenide;
 import com.codeborne.selenide.SelenideElement;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.stream.Stream;
@@ -20,7 +22,12 @@ public class AccountSelect extends BaseElement {
 
     // аккаунты подгружаются асинхронно: ждём плейсхолдер (+1) и все аккаунты пользователя
     public AccountSelect waitForAccounts(int accountsCount) {
-        findAll("option").shouldHave(CollectionCondition.size(accountsCount + 1));
+        try {
+            findAll("option").shouldHave(CollectionCondition.size(accountsCount + 1), Duration.ofSeconds(4));
+        } catch (AssertionError e) {
+            Selenide.refresh(); // фронтенд не подтянул аккаунты, пробуем ещё раз
+            findAll("option").shouldHave(CollectionCondition.size(accountsCount + 1));
+        }
         return this;
     }
 

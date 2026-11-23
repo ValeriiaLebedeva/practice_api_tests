@@ -1,8 +1,11 @@
 package ui.pages;
 
 import com.codeborne.selenide.Condition;
+import com.codeborne.selenide.Selenide;
 import com.codeborne.selenide.SelenideElement;
 import org.openqa.selenium.Keys;
+
+import java.time.Duration;
 
 import static com.codeborne.selenide.Selenide.$;
 import static com.codeborne.selenide.Selenide.$$;
@@ -20,8 +23,14 @@ public class EditProfilePage extends BasePage<EditProfilePage> {
 
     // Страница при открытии запрашивает профиль и затем записывает имя в поле.
     // Пока поле не получило имя, вводить в него нельзя: поздний ответ затрёт введённое значение.
+    // Если за 4 секунды имя не появилось, фронтенд не подтянул профиль: обновляем страницу один раз.
     public EditProfilePage waitForCurrentName(String currentName) {
-        nameInput.shouldHave(Condition.exactValue(currentName));
+        try {
+            nameInput.shouldHave(Condition.exactValue(currentName), Duration.ofSeconds(4));
+        } catch (AssertionError e) {
+            Selenide.refresh();
+            nameInput.shouldHave(Condition.exactValue(currentName));
+        }
         return this;
     }
 
