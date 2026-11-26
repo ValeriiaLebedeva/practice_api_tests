@@ -38,8 +38,17 @@ public class EditProfilePage extends BasePage<EditProfilePage> {
     // и React не обновляет своё состояние (в нём остаётся старое имя).
     // Браузер работает в контейнере Linux, поэтому здесь Ctrl, а не Cmd, даже если тесты запускаются с macOS.
     public EditProfilePage clearName() {
-        nameInput.sendKeys(Keys.chord(Keys.CONTROL, "a"), Keys.BACK_SPACE);
-        nameInput.shouldBe(Condition.empty);
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            nameInput.sendKeys(Keys.chord(Keys.CONTROL, "a"), Keys.BACK_SPACE);
+            try {
+                nameInput.shouldBe(Condition.empty, Duration.ofSeconds(2));
+                return this;
+            } catch (AssertionError e) {
+                if (attempt == 3) {
+                    throw e; // три попытки не помогли: это уже не случайный сбой клавиш
+                }
+            }
+        }
         return this;
     }
 

@@ -13,10 +13,15 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import api.steps.AdminSteps;
 import api.steps.UserSteps;
+import api.dao.UserDao;
+import api.dao.comparison.DaoAndModelAssertions;
+import api.steps.DataBaseSteps;
+import common.annotations.APIVersion;
 import api.specs.ResponseSpecs;
 
 import java.util.stream.Stream;
 
+@APIVersion("with_database_with_fix")
 public class ChangeUserNameTest extends BaseTest {
 
     private static final String SUCCESSFUL_MESSAGE = "Profile updated successfully";
@@ -40,6 +45,9 @@ public class ChangeUserNameTest extends BaseTest {
         Customer customer = UserSteps.getProfile(userRequestModel);
         softly.assertThat(updateCustomerProfileRequestModel.getName()).isEqualTo(customer.getName());
 
+        // проверка через БД: профиль из API совпадает с записью в таблице customers
+        UserDao userDao = DataBaseSteps.getUserByUsername(userRequestModel.getUsername());
+        DaoAndModelAssertions.assertThat(customer, userDao).match();
     }
 
     public static Stream<Arguments> userInvalidData() {
@@ -66,5 +74,9 @@ public class ChangeUserNameTest extends BaseTest {
         Customer customer = UserSteps.getProfile(userRequestModel);
 
         softly.assertThat(profileName).isNotEqualTo(customer.getName());
+
+        // проверка через БД: профиль из API совпадает с записью в таблице customers
+        UserDao userDao = DataBaseSteps.getUserByUsername(userRequestModel.getUsername());
+        DaoAndModelAssertions.assertThat(customer, userDao).match();
     }
 }

@@ -1,10 +1,13 @@
 package api.iteration1;
 
+import api.dao.UserDao;
+import api.dao.comparison.DaoAndModelAssertions;
 import api.generators.RandomModelGenerator;
 import api.models.CreateUserRequestModel;
 import api.models.CreateUserResponseModel;
 import api.models.assertions.ModelAssertions;
 import api.skelethon.requesters.CrudRequester;
+import api.steps.DataBaseSteps;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -17,6 +20,8 @@ import api.specs.ResponseSpecs;
 
 import java.util.List;
 import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 public class CreateUserTest extends BaseTest {
     @Test
@@ -32,6 +37,9 @@ public class CreateUserTest extends BaseTest {
 
         ModelAssertions.assertThatModels(createUserRequestModel, createUserResponseModel).match(softly);
         softly.assertThat(createUserRequestModel.getPassword()).isNotEqualTo(createUserResponseModel.getPassword());
+
+        UserDao userDao = DataBaseSteps.getUserByUsername(createUserRequestModel.getUsername());
+        DaoAndModelAssertions.assertThat(createUserResponseModel, userDao).match();
 
         AdminSteps.deleteUser(createUserResponseModel.getId());
     }
@@ -60,5 +68,7 @@ public class CreateUserTest extends BaseTest {
                 Endpoint.ADMIN_USERS,
                 ResponseSpecs.requestReturnsBadRequest(errorKey, errorValues))
                 .post(createUserRequest);
+
+        assertNull(DataBaseSteps.getUserByUsername(createUserRequest.getUsername()));
     }
 }

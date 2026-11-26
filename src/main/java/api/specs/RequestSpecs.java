@@ -10,13 +10,14 @@ import api.models.LoginUserRequestModel;
 import api.skelethon.Endpoint;
 import api.skelethon.requesters.CrudRequester;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RequestSpecs {
     private static final String AUTHORIZATION = "Authorization";
-    private static Map<String, String> authHeaders = new HashMap<>(Map.of("admin", "Basic YWRtaW46YWRtaW4="));
+    // тесты идут параллельно, поэтому обычный HashMap ломается при одновременной записи (get("admin") мог вернуть null)
+    private static final Map<String, String> authHeaders = new ConcurrentHashMap<>(Map.of("admin", "Basic YWRtaW46YWRtaW4="));
 
     private RequestSpecs() {
     }

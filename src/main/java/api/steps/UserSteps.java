@@ -7,16 +7,22 @@ import api.skelethon.requesters.*;
 import api.specs.RequestSpecs;
 import api.specs.ResponseSpecs;
 import io.restassured.response.ValidatableResponse;
+import io.restassured.specification.RequestSpecification;
 import io.restassured.specification.ResponseSpecification;
 
 import java.util.List;
 
 public class UserSteps {
 
+    // спецификация запроса от имени пользователя: одна точка вместо повторения во всех методах
+    private static RequestSpecification userSpec(CreateUserRequestModel user) {
+        return RequestSpecs.authAsUser(user.getUsername(), user.getPassword());
+    }
+
     // создание аккаунта
     public static CreateAccountResponseModel createAccount(CreateUserRequestModel userRequestModel) {
         return new ValidatedCrudRequester<CreateAccountResponseModel>(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                userSpec(userRequestModel),
                 Endpoint.ACCOUNTS,
                 ResponseSpecs.entityWasCreated())
                 .post(null);
@@ -25,7 +31,7 @@ public class UserSteps {
     // получение списка аккаунтов
     public static List<Account> getAccountsList(CreateUserRequestModel userRequestModel) {
         return new ValidatedGetListRequester<Account>(
-                RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
+                userSpec(userRequestModel),
                 Endpoint.CUSTOMER_ACCOUNTS,
                 ResponseSpecs.requestReturnsOK())
                 .getAll();
@@ -50,19 +56,25 @@ public class UserSteps {
 
 
     // успешный депозит
-    public static DepositMoneyResponseModel deposit(CreateUserRequestModel user, long accountId, double amount) {
+    // запрос собирается снаружи, чтобы тест мог сравнить его с ответом через ModelAssertions
+    public static DepositMoneyResponseModel deposit(CreateUserRequestModel user, DepositMoneyRequestModel request) {
         return new ValidatedCrudRequester<DepositMoneyResponseModel>(
-                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                userSpec(user),
                 Endpoint.ACCOUNTS_DEPOSIT,
                 ResponseSpecs.requestReturnsOK())
-                .post(depositRequest(accountId, amount));
+                .post(request);
+    }
+
+    // успешный депозит, когда нужен только результат
+    public static DepositMoneyResponseModel deposit(CreateUserRequestModel user, long accountId, double amount) {
+        return deposit(user, depositRequest(accountId, amount));
     }
 
     // неуспешный депозит
     public static ValidatableResponse depositExpecting(CreateUserRequestModel user, long accountId, double amount,
                                                        ResponseSpecification expected) {
         return new CrudRequester(
-                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                userSpec(user),
                 Endpoint.ACCOUNTS_DEPOSIT,
                 expected)
                 .post(depositRequest(accountId, amount));
@@ -77,7 +89,7 @@ public class UserSteps {
     // запрос собирается снаружи, чтобы тест мог сравнить его с ответом через ModelAssertions
     public static TransferMoneyResponseModel transfer(CreateUserRequestModel user, TransferMoneyRequestModel request) {
         return new ValidatedCrudRequester<TransferMoneyResponseModel>(
-                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                userSpec(user),
                 Endpoint.ACCOUNTS_TRANSFER,
                 ResponseSpecs.requestReturnsOK())
                 .post(request);
@@ -87,7 +99,7 @@ public class UserSteps {
     public static ValidatableResponse transferExpecting(CreateUserRequestModel user, TransferMoneyRequestModel request,
                                                         ResponseSpecification expected) {
         return new CrudRequester(
-                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                userSpec(user),
                 Endpoint.ACCOUNTS_TRANSFER,
                 expected)
                 .post(request);
@@ -97,7 +109,7 @@ public class UserSteps {
     // получение профиля
     public static Customer getProfile(CreateUserRequestModel user) {
         return new ValidatedGetRequester<Customer>(
-                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                userSpec(user),
                 Endpoint.GET_CUSTOMER_PROFILE,
                 ResponseSpecs.requestReturnsOK())
                 .get();
@@ -107,7 +119,7 @@ public class UserSteps {
     public static UpdateCustomerProfileResponseModel updateProfile(CreateUserRequestModel user,
                                                                    UpdateCustomerProfileRequestModel request) {
         return new ValidatedPutRequester<UpdateCustomerProfileResponseModel>(
-                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                userSpec(user),
                 Endpoint.UPDATE_CUSTOMER_PROFILE,
                 ResponseSpecs.requestReturnsOK())
                 .put(request);
@@ -118,7 +130,7 @@ public class UserSteps {
                                                              UpdateCustomerProfileRequestModel request,
                                                              ResponseSpecification expected) {
         return new PutRequester(
-                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                userSpec(user),
                 Endpoint.UPDATE_CUSTOMER_PROFILE,
                 expected)
                 .put(request);
