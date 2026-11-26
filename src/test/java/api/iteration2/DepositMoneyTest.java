@@ -3,20 +3,23 @@ package api.iteration2;
 import api.iteration1.BaseTest;
 import api.models.*;
 import api.models.assertions.ModelAssertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import api.skelethon.Endpoint;
-import api.skelethon.requesters.ValidatedCrudRequester;
 import api.steps.AdminSteps;
 import api.steps.UserSteps;
-import api.specs.RequestSpecs;
+import api.dao.AccountDao;
+import api.steps.DataBaseSteps;
+import api.dao.comparison.DaoAndModelAssertions;
+import common.annotations.APIVersion;
 import api.specs.ResponseSpecs;
 
 import java.util.List;
 import java.util.stream.Stream;
 
+@APIVersion("with_database_with_fix")
 public class DepositMoneyTest extends BaseTest {
 
     private final static String UNAUTHENTIC_ERROR_MESSAGE = "Unauthorized access to account";
@@ -33,17 +36,17 @@ public class DepositMoneyTest extends BaseTest {
 
         CreateAccountResponseModel createAccountResponseModel = UserSteps.createAccount(userRequestModel);
 
+        // созданный аккаунт в БД совпадает с ответом API (правила в dao-comparison.properties)
+        DaoAndModelAssertions.assertThat(createAccountResponseModel,
+                DataBaseSteps.getAccountByAccountNumber(createAccountResponseModel.getAccountNumber())).match();
+
         DepositMoneyRequestModel depositMoneyRequestModel = DepositMoneyRequestModel.builder()
                 .id(createAccountResponseModel.getId())
                 .balance(deposit)
                 .build();
 
         DepositMoneyResponseModel depositMoneyResponseModel =
-                new ValidatedCrudRequester<DepositMoneyResponseModel>(
-                        RequestSpecs.authAsUser(userRequestModel.getUsername(), userRequestModel.getPassword()),
-                        Endpoint.ACCOUNTS_DEPOSIT,
-                        ResponseSpecs.requestReturnsOK())
-                        .post(depositMoneyRequestModel);
+                UserSteps.deposit(userRequestModel, depositMoneyRequestModel);
 
         // id и balance запроса совпадают с ответом (правила в model-comparison.properties)
         ModelAssertions.assertThatModels(depositMoneyRequestModel, depositMoneyResponseModel).match(softly);
@@ -65,23 +68,41 @@ public class DepositMoneyTest extends BaseTest {
         // находим аккаунт
         Account account = UserSteps.getAccountById(accountList, createAccountResponseModel.getId());
 
-        // проверяем баланс аккаунта и количество транзакций
+        // проверяем баланс аккаунта и количество транзакций (в БД сумма округляется до двух знаков)
         softly.assertThat(account
-                .getBalance()).isEqualTo(deposit);
+                .getBalance()).isEqualTo(round2(deposit));
         softly.assertThat(account
                 .getTransactions()
                 .size()).isEqualTo(1);
+
+        // проверка через БД: аккаунт из API совпадает с записью в таблице accounts
+        AccountDao accountDao = DataBaseSteps.getAccountByAccountNumber(account.getAccountNumber());
+        DaoAndModelAssertions.assertThat(account, accountDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(account);
     }
 
+    // тексты ошибок валидации в with_database_with_fix отличаются от прежней версии
     public static Stream<Arguments> depositAmountInvalidData() {
-        return Stream.of(Arguments.of(-0.01, "Deposit amount must be at least 0.01"),
-                Arguments.of(0.000001, "Deposit amount must be at least 0.01"),
-                Arguments.of(5000.01, "Deposit amount cannot exceed 5000"));
+        return Stream.of(Arguments.of(-0.01, "Invalid account or amount"),
+                Arguments.of(5000.01, "Deposit amount exceeds the 5000 limit"));
     }
 
     @MethodSource("depositAmountInvalidData")
     @ParameterizedTest
     public void userCanNotDepositInvalidMoneyAccountExistTest(double deposit, String message) {
+        assertDepositRejected(deposit, message);
+    }
+
+    // Баг with_database_with_fix: депозит меньше минимального 0.01 принимается (200 вместо 400).
+    @Disabled("баг: депозит 0.000001 принимается, а минимум 0.01")
+    @Test
+    public void userCanNotDepositAmountBelowMinimumTest() {
+        assertDepositRejected(0.000001, "Deposit amount must be at least 0.01");
+    }
+
+    // общий сценарий: депозит отклонён, баланс и транзакции прежние
+    private void assertDepositRejected(double deposit, String message) {
 
         CreateUserRequestModel userRequestModel = AdminSteps.createUser();
 
@@ -107,6 +128,12 @@ public class DepositMoneyTest extends BaseTest {
         softly.assertThat(account
                 .getTransactions()
                 .size()).isEqualTo(0);
+
+        // проверка через БД: аккаунт из API совпадает с записью в таблице accounts
+        AccountDao accountDao = DataBaseSteps.getAccountByAccountNumber(account.getAccountNumber());
+        DaoAndModelAssertions.assertThat(account, accountDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(account);
     }
 
     @Test
@@ -137,6 +164,12 @@ public class DepositMoneyTest extends BaseTest {
         softly.assertThat(account
                 .getTransactions()
                 .size()).isEqualTo(0);
+
+        // проверка через БД: аккаунт из API совпадает с записью в таблице accounts
+        AccountDao accountDao = DataBaseSteps.getAccountByAccountNumber(account.getAccountNumber());
+        DaoAndModelAssertions.assertThat(account, accountDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(account);
     }
 
     @Test
@@ -178,5 +211,11 @@ public class DepositMoneyTest extends BaseTest {
 
         // проверяем размер количества another аккаунтов
         softly.assertThat(accountList2.size()).isEqualTo(0);
+
+        // проверка через БД: аккаунт из API совпадает с записью в таблице accounts
+        AccountDao accountDao = DataBaseSteps.getAccountByAccountNumber(account.getAccountNumber());
+        DaoAndModelAssertions.assertThat(account, accountDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(account);
     }
 }

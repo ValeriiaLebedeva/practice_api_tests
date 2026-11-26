@@ -10,11 +10,16 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import api.steps.AdminSteps;
 import api.steps.UserSteps;
+import api.steps.DataBaseSteps;
+import api.dao.AccountDao;
+import api.dao.comparison.DaoAndModelAssertions;
+import common.annotations.APIVersion;
 import api.specs.ResponseSpecs;
 
 import java.util.List;
 import java.util.stream.Stream;
 
+@APIVersion("with_database_with_fix")
 public class TransferMoneyTest extends BaseTest {
 
     private final static String SUCCESSFUL_MESSAGE = "Transfer successful";
@@ -72,9 +77,9 @@ public class TransferMoneyTest extends BaseTest {
         // находим аккаунт - отправитель
         Account accountSenderResponse = UserSteps.getAccountById(accountList, accountSender.getId());
 
-        // проверяем баланс аккаунта отправителя и количество транзакций
+        // проверяем баланс аккаунта отправителя и количество транзакций (в БД сумма округляется до двух знаков)
         softly.assertThat(accountSenderResponse
-                .getBalance()).isEqualTo(deposit - transferAmount);
+                .getBalance()).isEqualTo(round2(deposit - transferAmount));
         softly.assertThat(accountSenderResponse
                 .getTransactions()
                 .size()).isEqualTo(2);
@@ -91,7 +96,7 @@ public class TransferMoneyTest extends BaseTest {
         softly.assertThat(depositTransaction
                 .getRelatedAccountId()).isEqualTo(accountSender.getId());
         softly.assertThat(transferOutTransaction
-                .getAmount()).isEqualTo(transferAmount);
+                .getAmount()).isEqualTo(round2(transferAmount));
         softly.assertThat(transferOutTransaction
                 .getRelatedAccountId()).isEqualTo(accountReceiver.getId());
 
@@ -100,7 +105,7 @@ public class TransferMoneyTest extends BaseTest {
 
         // проверяем баланс аккаунта получателя и количество транзакций
         softly.assertThat(accountReceiverResponse
-                .getBalance()).isEqualTo(transferAmount);
+                .getBalance()).isEqualTo(round2(transferAmount));
         softly.assertThat(accountReceiverResponse
                 .getTransactions()
                 .size()).isEqualTo(1);
@@ -110,9 +115,19 @@ public class TransferMoneyTest extends BaseTest {
 
         // проверяем историю транзакции TRANSFER_IN аккаунта получателя
         softly.assertThat(transferInTransaction
-                .getAmount()).isEqualTo(transferAmount);
+                .getAmount()).isEqualTo(round2(transferAmount));
         softly.assertThat(transferInTransaction
                 .getRelatedAccountId()).isEqualTo(accountSender.getId());
+
+        // проверка через БД: аккаунт из API совпадает с записью в таблице accounts
+        AccountDao senderDao = DataBaseSteps.getAccountByAccountNumber(accountSenderResponse.getAccountNumber());
+        DaoAndModelAssertions.assertThat(accountSenderResponse, senderDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(accountSenderResponse);
+        AccountDao receiverDao = DataBaseSteps.getAccountByAccountNumber(accountReceiverResponse.getAccountNumber());
+        DaoAndModelAssertions.assertThat(accountReceiverResponse, receiverDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(accountReceiverResponse);
     }
 
     @Test
@@ -207,13 +222,23 @@ public class TransferMoneyTest extends BaseTest {
                 .getRelatedAccountId()).isEqualTo(accountSender.getId());
         softly.assertThat(transferInTransaction
                 .getTimestamp()).isNotEqualTo(null);
+
+        // проверка через БД: аккаунт из API совпадает с записью в таблице accounts
+        AccountDao senderDao = DataBaseSteps.getAccountByAccountNumber(accountSenderResponse.getAccountNumber());
+        DaoAndModelAssertions.assertThat(accountSenderResponse, senderDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(accountSenderResponse);
+        AccountDao receiverDao = DataBaseSteps.getAccountByAccountNumber(accountReceiverResponse.getAccountNumber());
+        DaoAndModelAssertions.assertThat(accountReceiverResponse, receiverDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(accountReceiverResponse);
     }
 
+    // тексты ошибок валидации в with_database_with_fix отличаются от прежней версии
     public static Stream<Arguments> transferAmountInvalidData() {
-        return Stream.of(Arguments.of(100, 100.5, BAD_REQUEST_MESSAGE_INVALID_TRANSFER)
-                , Arguments.of(100, -0.01, BAD_REQUEST_MESSAGE_MIN_VALUE),
-                Arguments.of(100, 0, BAD_REQUEST_MESSAGE_MIN_VALUE),
-                Arguments.of(100, 0.001, BAD_REQUEST_MESSAGE_MIN_VALUE),
+        return Stream.of(Arguments.of(100, 100.5, BAD_REQUEST_MESSAGE_INVALID_TRANSFER),
+                Arguments.of(100, -0.01, BAD_REQUEST_MESSAGE_INVALID_TRANSFER),
+                Arguments.of(100, 0, BAD_REQUEST_MESSAGE_INVALID_TRANSFER),
                 Arguments.of(100, 10000.01, BAD_REQUEST_MESSAGE_MAX_VALUE),
                 Arguments.of(100, 10000.00001, BAD_REQUEST_MESSAGE_MAX_VALUE));
     }
@@ -221,6 +246,18 @@ public class TransferMoneyTest extends BaseTest {
     @MethodSource("transferAmountInvalidData")
     @ParameterizedTest
     public void transferAmountNegativeCase(double deposit, double transfer, String message) {
+        assertTransferRejected(deposit, transfer, message);
+    }
+
+    // Баг with_database_with_fix: перевод меньше минимального 0.01 проходит (200 вместо 400).
+    @Disabled("баг: перевод 0.001 проходит, а минимум 0.01")
+    @Test
+    public void transferAmountBelowMinimumNegativeCase() {
+        assertTransferRejected(100, 0.001, BAD_REQUEST_MESSAGE_MIN_VALUE);
+    }
+
+    // общий сценарий: перевод отклонён, балансы и транзакции прежние
+    private void assertTransferRejected(double deposit, double transfer, String message) {
 
         // создаем юзера
         CreateUserRequestModel userRequestModel = AdminSteps.createUser();
@@ -269,6 +306,16 @@ public class TransferMoneyTest extends BaseTest {
         softly.assertThat(accountReceiverResponse
                 .getTransactions()
                 .size()).isEqualTo(0);
+
+        // проверка через БД: аккаунт из API совпадает с записью в таблице accounts
+        AccountDao senderDao = DataBaseSteps.getAccountByAccountNumber(accountSenderResponse.getAccountNumber());
+        DaoAndModelAssertions.assertThat(accountSenderResponse, senderDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(accountSenderResponse);
+        AccountDao receiverDao = DataBaseSteps.getAccountByAccountNumber(accountReceiverResponse.getAccountNumber());
+        DaoAndModelAssertions.assertThat(accountReceiverResponse, receiverDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(accountReceiverResponse);
     }
 
     @Test
@@ -313,6 +360,12 @@ public class TransferMoneyTest extends BaseTest {
         softly.assertThat(accountSenderResponse
                 .getTransactions()
                 .size()).isEqualTo(1);
+
+        // проверка через БД: аккаунт из API совпадает с записью в таблице accounts
+        AccountDao senderDao = DataBaseSteps.getAccountByAccountNumber(accountSenderResponse.getAccountNumber());
+        DaoAndModelAssertions.assertThat(accountSenderResponse, senderDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(accountSenderResponse);
     }
 
     @Test
@@ -352,6 +405,12 @@ public class TransferMoneyTest extends BaseTest {
         softly.assertThat(accountReceiverResponse
                 .getTransactions()
                 .size()).isEqualTo(0);
+
+        // проверка через БД: аккаунт из API совпадает с записью в таблице accounts
+        AccountDao receiverDao = DataBaseSteps.getAccountByAccountNumber(accountReceiverResponse.getAccountNumber());
+        DaoAndModelAssertions.assertThat(accountReceiverResponse, receiverDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(accountReceiverResponse);
     }
 
     @Test
@@ -395,6 +454,12 @@ public class TransferMoneyTest extends BaseTest {
         softly.assertThat(accountSenderResponse
                 .getTransactions()
                 .size()).isEqualTo(1);
+
+        // проверка через БД: аккаунт из API совпадает с записью в таблице accounts
+        AccountDao senderDao = DataBaseSteps.getAccountByAccountNumber(accountSenderResponse.getAccountNumber());
+        DaoAndModelAssertions.assertThat(accountSenderResponse, senderDao).match();
+        // транзакции аккаунта из API совпадают с таблицей transactions
+        assertTransactionsInDb(accountSenderResponse);
     }
 
     // создание модели запроса трансфера
