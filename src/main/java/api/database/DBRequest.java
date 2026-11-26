@@ -16,12 +16,29 @@ import java.util.List;
 @Builder
 public class DBRequest {
     private RequestType requestType;
-    private String table;
+    private Table table;
     private List<Condition> conditions;
     private Class<?> extractAsClass;
 
     public enum RequestType {
         SELECT, INSERT, UPDATE, DELETE
+    }
+
+    // таблицы БД: имя в SQL хранится в одном месте, опечатку в названии не сделать
+    public enum Table {
+        CUSTOMERS("customers"),
+        ACCOUNTS("accounts"),
+        TRANSACTIONS("transactions");
+
+        private final String tableName;
+
+        Table(String tableName) {
+            this.tableName = tableName;
+        }
+
+        public String getTableName() {
+            return tableName;
+        }
     }
 
     public <T> T extractAs(Class<T> clazz) {
@@ -130,7 +147,7 @@ public class DBRequest {
 
         switch (requestType) {
             case SELECT:
-                sql.append("SELECT * FROM ").append(table);
+                sql.append("SELECT * FROM ").append(table.getTableName());
                 if (conditions != null && !conditions.isEmpty()) {
                     sql.append(" WHERE ");
                     for (int i = 0; i < conditions.size(); i++) {
@@ -160,7 +177,7 @@ public class DBRequest {
 
     public static class DBRequestBuilder {
         private RequestType requestType;
-        private String table;
+        private Table table;
         private List<Condition> conditions = new ArrayList<>();
         private Class<?> extractAsClass;
 
@@ -174,7 +191,7 @@ public class DBRequest {
             return this;
         }
 
-        public DBRequestBuilder table(String table) {
+        public DBRequestBuilder table(Table table) {
             this.table = table;
             return this;
         }

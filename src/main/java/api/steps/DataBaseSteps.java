@@ -2,6 +2,7 @@ package api.steps;
 
 import api.database.Condition;
 import api.database.DBRequest;
+import api.database.DBRequest.Table;
 import api.dao.UserDao;
 import api.dao.AccountDao;
 import api.dao.TransactionDao;
@@ -20,7 +21,7 @@ public class DataBaseSteps {
         return StepLogger.log("Get user from database by username: " + username, () -> {
             return DBRequest.builder()
                     .requestType(DBRequest.RequestType.SELECT)
-                    .table("customers")
+                    .table(Table.CUSTOMERS)
                     .where(Condition.equalTo("username", username))
                     .extractAs(UserDao.class);
         });
@@ -30,7 +31,7 @@ public class DataBaseSteps {
         return StepLogger.log("Get user from database by ID: " + id, () -> {
             return DBRequest.builder()
                     .requestType(DBRequest.RequestType.SELECT)
-                    .table("customers")
+                    .table(Table.CUSTOMERS)
                     .where(Condition.equalTo("id", id))
                     .extractAs(UserDao.class);
         });
@@ -40,7 +41,7 @@ public class DataBaseSteps {
         return StepLogger.log("Get user from database by role: " + role, () -> {
             return DBRequest.builder()
                     .requestType(DBRequest.RequestType.SELECT)
-                    .table("customers")
+                    .table(Table.CUSTOMERS)
                     .where(Condition.equalTo("role", role))
                     .extractAs(UserDao.class);
         });
@@ -50,7 +51,7 @@ public class DataBaseSteps {
         return StepLogger.log("Get account from database by account number: " + accountNumber, () -> {
             return DBRequest.builder()
                     .requestType(DBRequest.RequestType.SELECT)
-                    .table("accounts")
+                    .table(Table.ACCOUNTS)
                     .where(Condition.equalTo("account_number", accountNumber))
                     .extractAs(AccountDao.class);
         });
@@ -60,7 +61,7 @@ public class DataBaseSteps {
         return StepLogger.log("Get account from database by ID: " + id, () -> {
             return DBRequest.builder()
                     .requestType(DBRequest.RequestType.SELECT)
-                    .table("accounts")
+                    .table(Table.ACCOUNTS)
                     .where(Condition.equalTo("id", id))
                     .extractAs(AccountDao.class);
         });
@@ -70,7 +71,7 @@ public class DataBaseSteps {
         return StepLogger.log("Get account from database by customer ID: " + customerId, () -> {
             return DBRequest.builder()
                     .requestType(DBRequest.RequestType.SELECT)
-                    .table("accounts")
+                    .table(Table.ACCOUNTS)
                     .where(Condition.equalTo("customer_id", customerId))
                     .extractAs(AccountDao.class);
         });
@@ -80,7 +81,7 @@ public class DataBaseSteps {
         return StepLogger.log("Get transactions from database by account ID: " + accountId, () -> {
             return DBRequest.builder()
                     .requestType(DBRequest.RequestType.SELECT)
-                    .table("transactions")
+                    .table(Table.TRANSACTIONS)
                     .where(Condition.equalTo("account_id", accountId))
                     .extractAsList(TransactionDao.class);
         });
