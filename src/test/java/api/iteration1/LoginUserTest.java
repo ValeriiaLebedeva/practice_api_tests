@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import api.skelethon.Endpoint;
 import api.skelethon.requesters.CrudRequester;
 import api.skelethon.requesters.ValidatedCrudRequester;
-import api.skelethon.steps.AdminSteps;
+import api.steps.AdminSteps;
 import api.specs.RequestSpecs;
 import api.specs.ResponseSpecs;
 

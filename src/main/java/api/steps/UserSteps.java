@@ -1,4 +1,4 @@
-package api.skelethon.steps;
+package api.steps;
 
 import api.generators.RandomData;
 import api.models.*;

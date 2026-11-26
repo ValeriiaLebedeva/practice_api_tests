@@ -9,8 +9,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import api.skelethon.Endpoint;
 import api.skelethon.requesters.ValidatedCrudRequester;
-import api.skelethon.steps.AdminSteps;
-import api.skelethon.steps.UserSteps;
+import api.steps.AdminSteps;
+import api.steps.UserSteps;
 import api.specs.RequestSpecs;
 import api.specs.ResponseSpecs;
 

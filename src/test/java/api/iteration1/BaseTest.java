@@ -3,7 +3,7 @@ package api.iteration1;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import api.skelethon.steps.AdminSteps;
+import api.steps.AdminSteps;
 
 public class BaseTest {
     protected SoftAssertions softly;

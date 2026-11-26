@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 public class RequestSpecs {
+    private static final String AUTHORIZATION = "Authorization";
     private static Map<String, String> authHeaders = new HashMap<>(Map.of("admin", "Basic YWRtaW46YWRtaW4="));
 
     private RequestSpecs() {
@@ -35,7 +36,7 @@ public class RequestSpecs {
 
     public static RequestSpecification adminSpec() {
         return defaultRequestBuilder()
-                .addHeader("Authorization", authHeaders.get("admin"))
+                .addHeader(AUTHORIZATION, authHeaders.get("admin"))
                 .build();
     }
 
@@ -49,14 +50,14 @@ public class RequestSpecs {
                     ResponseSpecs.requestReturnsOK())
                     .post(LoginUserRequestModel.builder().username(username).password(password).build())
                     .extract()
-                    .header("Authorization");
+                    .header(AUTHORIZATION);
             authHeaders.put(username, userAuthHeader);
         } else {
             userAuthHeader = authHeaders.get(username);
         }
 
         return defaultRequestBuilder()
-                .addHeader("Authorization", userAuthHeader)
+                .addHeader(AUTHORIZATION, userAuthHeader)
                 .build();
     }
 
@@ -70,7 +71,7 @@ public class RequestSpecs {
                     ResponseSpecs.requestReturnsOK())
                     .post(LoginUserRequestModel.builder().username(username).password(password).build())
                     .extract()
-                    .header("Authorization");
+                    .header(AUTHORIZATION);
 
             authHeaders.put(username, userAuthHeader);
         } else {
