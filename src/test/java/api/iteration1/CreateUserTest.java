@@ -4,6 +4,7 @@ import api.generators.RandomModelGenerator;
 import api.models.CreateUserRequestModel;
 import api.models.CreateUserResponseModel;
 import api.models.assertions.ModelAssertions;
+import api.skelethon.requesters.CrudRequester;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -14,6 +15,7 @@ import api.steps.AdminSteps;
 import api.specs.RequestSpecs;
 import api.specs.ResponseSpecs;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 public class CreateUserTest extends BaseTest {
@@ -37,26 +39,26 @@ public class CreateUserTest extends BaseTest {
     public static Stream<Arguments> userInvalidData() {
         return Stream.of(
                 // username field validation
-                Arguments.of("   ", "Password33$", "USER", "username", "Username cannot be blank"),
-                Arguments.of("ab", "Password33$", "USER", "username", "Username must be between 3 and 15 characters"),
-                Arguments.of("abc$", "Password33$", "USER", "username", "Username must contain only letters, digits, dashes, underscores, and dots"),
-                Arguments.of("abc%", "Password33$", "USER", "username", "Username must contain only letters, digits, dashes, underscores, and dots")
+                Arguments.of("   ", "Password33$", "USER", "username", List.of("Username cannot be blank", "Username must contain only letters, digits, dashes, underscores, and dots")),
+                Arguments.of("ab", "Password33$", "USER", "username", List.of("Username must be between 3 and 15 characters")),
+                Arguments.of("abc$", "Password33$", "USER", "username", List.of("Username must contain only letters, digits, dashes, underscores, and dots")),
+                Arguments.of("abc%", "Password33$", "USER", "username", List.of("Username must contain only letters, digits, dashes, underscores, and dots"))
         );
+
     }
 
     @MethodSource("userInvalidData")
     @ParameterizedTest
-    public void adminCanNotCreateUserWithInvalidData(String username, String password, String role, String errorKey, String errorValue) {
-        CreateUserRequestModel createUserRequestModel = CreateUserRequestModel.builder()
+    public void adminCanNotCreateUserWithInvalidData(String username, String password, String role, String errorKey, List<String> errorValues) {
+        CreateUserRequestModel createUserRequest = CreateUserRequestModel.builder()
                 .username(username)
                 .password(password)
                 .role(role)
                 .build();
 
-        new ValidatedCrudRequester<>(
-                RequestSpecs.adminSpec(),
+        new CrudRequester(RequestSpecs.adminSpec(),
                 Endpoint.ADMIN_USERS,
-                ResponseSpecs.requestReturnsBadRequest(errorKey, errorValue))
-                .post(createUserRequestModel);
+                ResponseSpecs.requestReturnsBadRequest(errorKey, errorValues))
+                .post(createUserRequest);
     }
 }
